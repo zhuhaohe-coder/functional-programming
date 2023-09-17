@@ -322,3 +322,173 @@ const baseHandler = {
 **Immutable.js 底层是持久化数据结构，而 Immer.js 的底层是 Proxy 代理模式。**
 
 两者虽然在具体的工作原理上大相径庭，但最终指向的目的却是一致的：**使数据的引用与数据内容的变化同步发生；并且在这个过程中，按需处理具体的变化点，提升不可变数据的执行效率。**
+
+# 因为DRY,所以HOF
+
+> DRY(Don't Repeat Yourself) 是一种软件设计原则，HOF(High Order Function)指高阶函数。
+
+**高阶函数，指的就是接收函数作为入参，或者将函数作为出参返回的函数。**
+
+## WHY HOF
+
+- 更简洁的代码,方便读写
+- 更小的编码负担
+- 更好的可读性
+- 代码可复用, 利人利己
+- 清晰的逻辑边界, 更少的测试工作
+
+# "万金油"Reduce
+
+> `reduce()`**是函数式语言的万金油；函数式语言不能失去** `reduce()`**，就像西方不能失去耶路撒冷。**
+
+**在 JS 中，基于 reduce()，我们不仅能够推导出其它数组方法，更能够推导出经典的函数组合过程。**
+
+## 使用reduce推导map
+
+```js
+const reduceToMap = (arr, fn) => {
+  return arr.reduce((pre, cur) => {
+    pre.push(fn(cur));
+    return pre;
+  }, []);
+};
+```
+
+`map()` 过程可以看作是 `reduce()` 过程的一种特殊的应用。
+
+也就是说，在数组方法里，`reduce()` 处在逻辑链相对底层的位置，这一点毋庸置疑。
+
+`reduce()`**真正的威力，在于它对函数组合思想的映射。**
+
+## `reduce()` 映射了函数组合思想
+
+`reduce()` 的工作流：
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/fd3b69f006824035ac674303fe2c0feb~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+通过观察这个工作流，我们可以发现这样两个特征：
+
+- `reduce()` 的回调函数在做参数组合
+- `reduce()` 过程构建了一个函数 pipeline
+
+### `reduce()` 的回调函数在做参数组合
+
+首先，就 reduce() 过程中的单个步骤来说，每一次回调执行，都会吃进 2 个参数，吐出 1 个结果。
+
+我们可以把每一次的调用看做是把 2 个入参被【**组合**】进了 callback 函数里，最后转化出 1 个出参的过程。
+
+我们把数组中的 n 个元素看做 n 个参数，那么 `reduce()` 的过程，就是一个把 n 个参数逐步【**组合**】到一起，最终吐出 1 个结果的过程。
+
+reduce，动词，意为减少。这个【减少】可以理解为是参数个数的减少。
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/ccc3554f1f1245c5bdaa8d3647411b90~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+如上图所示，reduce 方法把多个入参，reduce（减少）为一个出参 。
+
+### `reduce()` 过程是一个函数 pipeline
+
+`reduce()` 函数发起的工作流，可以看作是一个函数 pipeline。
+
+尽管每次调用的都是同一个函数，但**上一个函数的输出，总是会成为下一个函数的输入。**
+
+同时，`reduce()` pipeline 里的每一个任务都是一样的，仅仅是入参不同，**这极大地约束了 pipeline 的能力**。
+
+我们把 `reduce()` 的这两个特征放在一起来看：**参数组合+函数pipeline**。
+
+咱就是说，有没有可能，有没有可能咱们把 pipeline 里的每一个函数也弄成不一样的呢？
+
+更直白地说，你`reduce()`既然都能组合参数了，你能不能帮我的 pipeline 组合一下函数呢？
+
+毕竟，**JS 的函数是可以作为参数传递**的嘛！
+
+答案是肯定的——可能，可太能了！
+
+`reduce()` 之所以能够作为函数式编程的“万金油”存在，本质上就是因为它映射了函数组合的思想。
+
+而函数组合，恰恰是函数式编程中最特别、最关键的实践方法，是核心中的核心，堪称“核中核”。
+
+# 声明式数据流:从链式调用到回调地狱
+
+## 借助链式调用构建声明式数据流
+
+```js
+const arr = [1, 2, 3, 4, 5, 6, 7, 8];
+/*
+筛选出 arr 里大于 2 的数字
+将步骤1中筛选出的这些数字逐个乘以 2
+对步骤 2 中的偶数数组做一次求和
+*/
+const arrMoreThan2 = arr.filter((item) => item > 2);
+const arrMutile2 = arrMoreThan2.map((item) => item * 2);
+const arrSum = arrMutile2.reduce((pre, cur) => {
+  return pre + cur;
+}, 0);
+console.log(arrSum);//66
+
+//code review
+/*
+ 1.简洁性:
+ 冗余常量arrMoreThan2,arrMutile2(计算中间态)
+ 拉垮了代码的可读性
+
+ 2.安全性:
+ arrMoreThan2,arrMutile2作为引用类型,完全有可能在运行过程中被修改
+ 不要抱计算中间态暴露出去
+*/
+//优化
+const biggerThan2 = (num) => num > 2;
+const mutile2 = (num) => num * 2;
+const add = (a, b) => a + b;
+const sum = arr.filter(biggerThan2).map(mutile2).reduce(add, 0);
+console.log(sum);//66
+```
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/22e1de59b45848e0982ba71d67c99de3~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+**借助链式调用，足以完美地规避掉那些尴尬的“中间态”，从而确保我们的代码简洁安全。**
+
+过去，我有三行代码，我需要逐行阅读、理解计算中间态和主流程之间的逻辑关系，才能够推导出程序的意图。**这样的代码，是命令式的。**
+
+现在，我只需要观察一个函数调用链，这个调用链如同一条传送带一般，用函数名标注了每道工序的行为。即便不清楚数据到底是如何在“传送带”上流转的，我们也能够通过函数名去理解程序的意图。
+
+**这样的代码，是声明式的。** 基于此构建出的数据流，就是**声明式的数据流**。
+
+**实现声明式的数据流，除了借助链式调用，还可以借助函数组合。**
+
+### 链式调用的前提
+
+map()、reduce()、filter() 这些方法之间，之所以能够进行链式调用，是因为：
+
+1. 它们都**挂载在 Array 原型的 Array.prototype** 上
+2. 它们在计算结束后都会 return 一个新的 Array
+3. 既然 return 出来的也是 Array，那么自然可以继续访问原型 **Array.prototype** 上的方法
+
+链式调用的本质 **，是通过在方法中==返回对象实例本身的 this/ 与实例 this 相同类型的对象==，达到多次调用其原型（链）上方法的目的。**
+
+要对函数执行链式调用，**前提是==函数挂载在一个靠谱的宿主 Object 上==。**
+
+## 独立函数的组合姿势
+
+```js
+function add4(num) {
+  return num + 4;
+}
+
+function multiply3(num) {
+  return num * 3;
+}
+
+function divide2(num) {
+  return num / 2;
+}
+//如何基于这些独立函数，构建一个多个函数串行执行的工作流？
+```
+
+### 组合，但是回调地狱版
+
+```js
+// 1.套娃--反复去嵌套各种回调函数  回调地狱
+const res = add4(multiply3(divide2(10)));
+console.log(res);
+```
+
