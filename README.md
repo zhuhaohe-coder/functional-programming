@@ -407,7 +407,115 @@ reduce，动词，意为减少。这个【减少】可以理解为是参数个�
 
 而函数组合，恰恰是函数式编程中最特别、最关键的实践方法，是核心中的核心，堪称“核中核”。
 
-# 声明式数据流:从链式调用到回调地狱
+### 借助reduce推导函数组合
+
+一旦我们可以把 reduce pipeline 里的最小计算单元修改成任意不同的函数，那么`reduce`的工作流就会变成下面这样了
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/9d0eed4a85a54046b0c8ee9e7ef679ed~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+只要我们能够想办法**让 reduce 工作流里的计算单元从一个函数转变为 N 个函数**，我们**就可以达到函数组合的目的**。
+
+在整个 reduce 的工作流中，callback 是锁死的，但每次调用 callback 时传入的参数是动态可变的（如下图）。
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/ad5509a0c9e04d8f8cc7a417ccb19ccc~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+我们把**待组合的函数放进一个数组里，然后调用这个函数数组的 reduce 方法**，就可以创建一个多个函数组成的工作流。
+
+而这，正是市面上主流的函数式库实现 compose/pipe 函数的思路。
+
+### 借助reduce推导pipe
+
+```js
+const funcs = [func1, func2, func3]
+```
+
+我们假设三个 func 均是用于数学计算的函数，整个工作流的任务就是吃进一个数字 0 作为入参、吐出一个计算结果作为出参。
+
+我想要逐步地组合调用 funcs 数组里的函数，得到一个这样的声明式数据流：
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/ae9a8c25da8e44fcab4ab393e40a6a49~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+如果我借助了 reduce，我得到的数据流乍一看和楼上是有出入的：
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/bc6e25ab292b433389d99280058d169b~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+如何通过调整 reduce 的调用，使它的工作流和声明式数据流看齐呢？
+
+首先是入参的对齐，这个比较简单，我们只需要把 initialValue 设定为 0 就可以了。
+
+入参明确后，我的 reduce 调用长这样：
+
+```js
+const funcs = [func1, func2, func3]  
+
+funcs.reduce(callback, 0)
+```
+
+接下来重点在于 callback 怎么实现
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/71658f7803864aa999f8e33370b5e93f~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+想要让上下两个流程等价，我们只需要确保红蓝两个圈圈的工作内容总是等价就可以了。
+
+从第一对红蓝圈圈开始看起，蓝色圈圈的工作内容是 func1(0)，红色圈圈的工作内容是 callback(0, func1)。
+
+两者等价，意味着 callback(0, func1) = func1(0)。
+
+同理，我们可以逐步推导出第二个、第三个红色圈圈的工作内容，分别应该满足：
+
+callback(value1, func2) = func2(value1)
+
+callback(value2, func3) = func3(value2)
+
+以此类推，对于任意的入参 (input, func），callback 都应该满足：
+
+callback(input, func) = func(input)
+
+```js
+function callback(input, func) {
+  func(input)
+}  
+
+funcs.reduce(callback,0)
+```
+
+再稍微包装一下，给这坨逻辑起一个新名字：
+
+```js
+function pipe(...funcs) {
+  function callback(input, func) {
+    return func(input)
+  }  
+
+  return function(param) {
+    return funcs.reduce(callback,param)
+  }
+}
+```
+
+我们就得到了一个经典的 pipe 函数。
+
+## compose : 倒序的pipe
+
+pipe 用于创建一个正序的函数传送带，而 compose 则用于创建一个倒序的函数传送带。
+
+我们把 pipe 函数里的 reduce 替换为 reduceRight，就能够得到一个compose：
+
+```js
+function compose(...funcs) {
+  function callback(input, func) {
+    return func(input)
+  }  
+
+  return function(param) {
+    return funcs.reduceRight(callback,param)
+  }
+}
+```
+
+**正序是 pipe，倒序是 compose。**
+
+# 声明式数据流
 
 ## 借助链式调用构建声明式数据流
 
@@ -492,3 +600,204 @@ const res = add4(multiply3(divide2(10)));
 console.log(res);
 ```
 
+### 使用reduce构建的pipe函数
+
+```js
+function pipe(...funcs) {
+  function callback(input, func) {
+    return func(input);
+  }
+  return function (param) {
+    return funcs.reduce(callback, param);
+  };
+}
+function add4(num) {
+  return num + 4;
+}
+
+function multiply3(num) {
+  return num * 3;
+}
+
+function divide2(num) {
+  return num / 2;
+}
+const computed = pipe(add4, multiply3, divide2);
+console.log(computed(10));
+```
+
+## Why Compose?
+
+面向对象的核心在于继承，而**函数式编程的核心则在于组合**。
+
+我们常说函数式编程就像一个乐高游戏：那一个个独立内聚的函数就像一堆乐高积木方块儿。它们看似渺小到无足轻重，却可以在**组合**后变幻出千百种形态、最终呈现出复杂而强大的功能。
+
+组合这个动词，赋予了函数式编程无限的想象力和可能性。
+
+在函数式编程的实践中，我们正是**借助 compose 来组合多个函数的功能**，它**是函数式编程中最有代表性的一个工具函数**，所以它才会成为面试题中的常客。
+
+# 多元函数解决方案:从编码工具视角看待偏函数&柯里化
+
+偏函数和柯里化解决的最核心的问题有两个，分别是：
+
+- 函数组合链中的多元参数问题
+- 函数逻辑复用的问题
+
+## 函数组合链中的多元参数问题
+
+### 理解函数中的"元数(Arity)"
+
+函数参数里的“元数”，指的其实就是函数参数的数量。
+
+### 函数组合链中的参数对齐问题
+
+函数组合虽好，但各种限制少不了。
+
+上一节中的pipe函数中, 调用链的三个函数齐刷刷都是一元函数,这个属于是理想情况了。有的时候，一个调用链中的函数彼此之间可能并没有这么和谐。
+
+对于函数组合链来说，它总是预期链上的函数是一元函数：函数吃进一个入参，吐出一个出参，然后这个出参又会作为下一个一元函数的入参......参数个数的对齐，是组合链能够运转的前提。
+
+**一旦链上乱入了多元函数，那么多元函数的入参数量就无法和上一个函数的出参数量对齐，进而导致执行错误。**
+
+> tips：==函数组合链上的函数总是一元函数==，这是一个通用且广泛的约定，但并不是一个“死规矩”。
+> 有时候，我们可以通过适当的改造，使组合链接受多元函数。比如 ramda.js 中的 pipe 函数，就允许链上的第一个函数有任意多个参数（注意，仅仅是第一个函数有此“特权”，其余函数仍然必须是一元函数）。
+
+**任何时候，只要我们想要对函数的入参数量进行改造，必须先想到偏函数&柯里化。**
+
+## 求解多元参数问题
+
+### 柯里化的概念与实现
+
+> 在计算机科学中，柯里化（英语：Currying），又译为卡瑞化或加里化，是把接受多个参数的函数变换成接受一个单一参数（最初函数的第一个参数）的函数，并且返回接受余下的参数而且返回结果的新函数的技术。
+
+具体一点，就是说柯里化是一个把 `fn(a, b, c)`转化为`fn(a)(b)(c)`的过程。
+
+举个例子，我有一个函数，可以将任意三个数相加：
+
+```js
+function addThreeNum(a, b, c) {
+  return a+b+c
+}
+```
+
+正常调用的话就是 `addThreeNum(1, 2, 3)` 这样的。
+
+但是通过柯里化，我可以把调用姿势改造为 `addThreeNum(1)(2)(3)`。
+
+有没有什么姿势，可以允许我在**保留原有函数的基础上，单纯通过增量代码来实现柯里化**呢？
+
+当然有啦！高阶函数不就是干这个的么！
+
+下面我就针对加法这个场景，创建了一个名为 curry 的高阶函数（解析在注释里）：
+
+```js
+// 定义高阶函数 curry
+function curry(addThreeNum) {
+  // 返回一个嵌套了三层的函数
+  return function addA(a) {
+    // 第一层“记住”参数a
+    return function addB(b) {
+      // 第二层“记住”参数b
+      return function addC(c) {
+        // 第三层直接调用现有函数 addThreeNum
+        return addThreeNum(a, b, c)
+      }
+    }
+  }
+}
+
+// 借助 curry 函数将 add
+const curriedAddThreeNum = curry(addThreeNum)
+// 输出6，输出结果符合预期
+curriedAddThreeNum(1)(2)(3)
+```
+
+### 偏函数 VS 柯里化
+
+> 在计算机科学中，**部分应用**（或部分函数应用）指的是将一些参数固定在一个函数上，产生另一个较小元的函数的过程。
+
+> tips: 偏函数英文是 partial application， 直译过来就是“部分应用”。
+
+偏函数是指通过**固定函数的一部分参数**，生成一个**参数数量更少的函数**的过程。
+
+柯里化说的是一个 n 元函数变成 n 个一元函数。
+
+偏函数说的是一个 n 元函数变成一个 m(m < n） 元函数。
+
+对于柯里化来说，不仅函数的元发生了变化，函数的数量也发生了变化（1个变成n个）。
+
+对于偏函数来说，仅有函数的元发生了变化（减少了），函数的数量是不变的。
+
+#### 偏函数求解组合链中的参数对齐问题
+
+```js
+function mutiply(a, b) {
+  return a * b;
+}
+function wrapFunc(fn, fixedValue) {
+  return (input) => {
+    return fn(fixedValue, input);
+  };
+}
+const mutiply3 = wrapFunc(mutiply, 3);
+console.log(mutiply3(2));
+```
+
+这样就成功固定了 `multiply` 函数的第一个入参 x，得到了一个一元函数 `multiply3`，这完全符合组合链对函数元的预期。
+
+## 函数逻辑复用问题
+
+当我们看到偏函数和柯里化的实现分别都借助了**高阶函数**后，“逻辑复用”几乎是一件不言而喻的事情了。
+
+### 参数固定-复用存量逻辑
+
+在 multiply3 这个例子中，偏函数除了解决了**函数的元的问题**，还充分地**对现有逻辑进行了复用**。
+
+multiply 函数是一个存量函数，我们的目标函数 **multiply3 其实可以看作是 multiply 函数功能的一个子集**。
+
+这种情况下，与其单独定义一个 `multiply3`，不如试着通过偏函数处理实现对存量逻辑 **`multiply`** 的定制。
+
+`multiply3`、`multiply` 两个函数的逻辑都不算复杂，复用带来的利好体现得还不算特别明显。
+
+但在实际的应用中，我们的存量函数逻辑可以是非常复杂的。
+
+```js
+function generateOrderData(type, area, settlement) {
+  // 省略数十行难以理解的业务逻辑......
+}
+```
+
+`generateOrderData` 通过读取订单类型、订单地区、订单结算信息等参数，对订单信息进行重构，最终输出一套能够供 UI 层直接消化的渲染数据。
+
+这样一个函数的改造成本是很高的。
+
+如果我们遇到一个场景，期望能够针对某一个特定区域、特定类型的订单数据进行计算（也就是固定 `type`、`area` 这两个参数），对应函数名为 `generateSpecOrderData(settlement)`。
+
+相比于参考 `generateOrderData` 的具体逻辑重新写一个 `generateSpecOrderData` 出来，直接在 `generateOrderData` 的基础上做偏函数处理不仅可以帮助我们避免大量的重复代码，同时也省去了读函数、理解函数的时间成本——毕竟，**做偏函数处理只需要我们了解函数的入参规则**就可以了。
+
+### 缩小函数的元数-减少重复传参
+
+偏函数不仅仅可以帮我们减少定义函数时的重复代码，还可以帮我们减少调用函数时的重复传参。
+
+在 `generateSpecOrderData` 函数被定义出来之前，我在项目里见到了大量这样的代码：
+
+```js
+// 文件 a
+const res = generateOrderData('food', 'hunan', normalSettlement)
+
+// 文件 b
+const UIData = generateOrderData('food', 'hunan', orderSettlement)  
+
+// 文件 c  
+const result = generateOrderData('food', 'hunan', couponSettlement)  
+```
+
+不同的调用，重复的传参，重复的 `food` + `hunan`。
+
+而偏函数恰恰就可以把 `food` 和 `hunan` “记忆”下来，帮助我们避免这些重复。
+
+实际上，通用函数为了确保其自身的灵活性，往往都具备“多元参数”的特征。但在一些特定的业务场景下，真正需要动态变化的只是其中的一部分的参数。这时候函数的一部分灵活性对我们来说是多余的，我们反而希望它的功能具体一点。
+
+比如 `generateSpecOrderData` 函数，就对 `type` 和 `area` 并不感冒，只是想动态传入 `settlement` 而已。
+
+这种场景下，偏函数出来扛大旗就再合适不过了。
