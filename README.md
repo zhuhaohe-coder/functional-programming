@@ -488,7 +488,7 @@ function pipe(...funcs) {
   }  
 
   return function(param) {
-    return funcs.reduce(callback,param)
+    ret urn funcs.reduce(callback,param)
   }
 }
 ```
@@ -801,3 +801,804 @@ const result = generateOrderData('food', 'hunan', couponSettlement)
 比如 `generateSpecOrderData` 函数，就对 `type` 和 `area` 并不感冒，只是想动态传入 `settlement` 而已。
 
 这种场景下，偏函数出来扛大旗就再合适不过了。
+
+# 通用柯里化函数的实现
+
+我们简单拆解一下这个函数的任务：
+
+1. 获取函数参数的数量
+2. 自动分层嵌套函数：有多少参数，就有多少层嵌套
+3. 在嵌套的最后一层，调用回调函数，传入所有入参。
+
+## 获取函数参数的数量
+
+在 JS 里，函数作为一等公民，它和对象一样有许多可访问的属性。其中 Function.length 属性刚好就是用来存放函数参数个数的。
+
+**通过访问函数的 length 属性，就可以拿到函数参数的数量**
+
+## 自动化"套娃"
+
+给定一个嵌套的上限，期望函数能够自动重复执行嵌套，直至达到上限。
+
+而“**嵌套**”的逻辑，摊开来看的话无非是：
+
+1. 判断当前层级是否已经达到了嵌套的上限
+2. 若达到，则执行回调函数；否则，继续“**嵌套**”
+
+## 递归边界的判断
+
+curry 函数会在每次嵌套定义一个新的函数之前，先检查当前层级是否已经达到了嵌套的上限。
+
+也就是说每一次递归，都会检查当前是否已经触碰到了递归边界。
+
+一旦触碰到递归边界（嵌套上限），则执行递归边界逻辑（也就是回调函数）。
+
+柯里化的过程，是层层“记忆”每个参数的过程。每一层嵌套函数，都有它需要去“记住”的参数。如果我们递归到某一层，发现此时已经没有“待记忆”的参数了，那么就可以认为，当前已经触碰到了递归边界。
+
+## 编码实现
+
+```js
+function curry(func, arity = func.length) {
+  //定义一个递归式generateCurried
+  function generateCurried(prevArgs) {
+    // generateCurried 函数必定返回一层嵌套
+    return function curried(nexArg) {
+      // 统计目前“已记忆”+“未记忆”的参数
+      const args = [...prevArgs, nexArg];
+      // 若 “已记忆”+“未记忆”的参数数量 >= 回调函数元数，则认为已经记忆了所有的参数
+      if (args.length >= arity) {
+        // 触碰递归边界，传入所有参数，调用回调函数
+        return func(...args);
+      } else {
+        // 未触碰递归边界，则递归调用 generateCurried 自身，创造新一层的嵌套
+        return generateCurried(args);
+      }
+    };
+    // 调用 generateCurried，起始传参为空数组，表示“目前还没有记住任何参数”
+    return generateCurried([]);
+  }
+}
+```
+
+# 范畴论启发下的函数设计模式
+
+函数式编程是一门有着深刻数学背景的学问，这其中一个最为关键的背景就是**范畴论**。
+
+Functor、Monad、SemiGroup、Monoid 这些看上去非常唬人的函数式编程概念，全部源于范畴论。
+
+## 组合问题的链式解法：一个盒子的故事
+
+**从编码的角度看，范畴论在 JS 中的应用，本质上还是为了解决函数组合的问题。**
+
+我们看回 Composition 小节案例中的这几个待组合的函数：
+
+```js
+function add4(num) {
+  return num + 4
+}  
+
+function multiply3(num) {
+  return num*3
+}  
+
+function divide2(num) {
+  return num/2
+}
+```
+
+如果不借助 compose/pipe 函数，我们还有其它的思路构造声明式的数据流吗？
+
+**范畴论告诉我们，有的，那就是构造一个【能够创造新盒子】盒子。**
+
+```js
+const Box = x => ({
+  map: f => Box(f(x)),
+  valueOf: () => x
+})
+```
+
+Box 函数的关键在于 map 方法，这个方法被调用时会做两件事情：
+
+1. 执行传入的回调函数 f ，入参为当前 Box 的参数 x
+2. 将 f(x) 的计算结果放进一个新的 Box 里
+
+这里我以 add4 为例，尝试把它作为 Box.map 的入参传入：
+
+```js
+const newBox = Box(10).map(add4)  
+// 输出 14
+newBox.valueOf()
+```
+
+可以看出，map 执行结束后，newBox 的函数上下文中，已经保存了新的 x 的值，x = 14。
+
+newBox 也是一个 Box，它也是有 map 方法的。
+
+而 map 方法又可以把新的计算结果传递给下一个 Box。
+
+通过反复地创造 Box、反复调用 Box 上的 map 方法，我们就能得到一个声明式的函数调用链：
+
+```js
+// 值为 21
+const computeBox = Box(10)
+                      .map(add4)
+                      .map(multiply3)
+                      .map(divide2)  
+                      .valueOf()
+```
+
+在这个调用链中，我们只需要关注每一次 map 调用的入参函数 f，即可得知每一步在执行什么任务。
+
+至于每一步的计算中间态是如何在不同的函数之前流转的、map 又是如何构造新的 Box 的，这些执行细节统统都被 Box 消化掉了。
+
+**这个盒子，其实就是范畴论在函数式编程中的一种表达。**
+
+## 复合运算：范畴论在编程中最核心的应用
+
+什么是范畴？
+
+> A category consists of objects and arrows that go between them.
+> 修言直译：一个范畴由一些对象以及这些对象之间的箭头组成。
+> ——《Category Theory For Programmers》
+
+我们可以用下图来示意一个范畴：
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/738e5974e6b14465bb9d4e24e7d038e6~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+图中的圆圈表示“对象”，这里的“对象”是一个数学术语，我们可以简单地把它理解为程序中的“数据”。
+
+而箭头描述的是对象与对象之间的映射，在范畴论中，它的名字叫“态射”。**“态射”，其实就是函数。**
+
+也就是说，从程序的视角出发，范畴包括了以下两个要素：
+
+1. 一组**数据**的集合（所谓“对象”）
+2. 一些操作该数据集合的**函数**（所谓“态射”）
+
+它们恰恰也都是函数式编程理论中的基础要素。
+
+假设 f、g 均为一个范畴下的函数，它们之间的复合运算就可以表示为：
+
+```scss
+g(x) · f(x)
+```
+
+用 JS 代码表示为：
+
+```js
+compose(g, f)
+```
+
+注意，**在数学的“复合”中，函数的书写顺序和执行顺序是相反的**，`g · f` 表示先执行 `f` 再执行 `g`。
+
+在我们前面学过的组合工具函数中， **compose 函数遵循的正是这个数学复合顺序，而 pipe 函数遵循的是计算机的逻辑顺序**。
+
+此外，多个函数的复合，还必须要满足一条原则，叫做“结合律”。
+
+这里我用代码来表示“结合律”：假设 f、g、h 均为一个范畴下的函数，它们之间应该具备这样的关系特征：
+
+```js
+compose(compose(f, g), h) = compose(f, compose(g, h))
+```
+
+**复合运算与结合律，恰恰完整地描述了我们刚学过去不久的“函数组合”思想。**
+
+不仅如此，我甚至还在[一本范畴论专著](https://link.juejin.cn/?target=https%3A%2F%2Fbartoszmilewski.com%2F2014%2F10%2F28%2Fcategory-theory-for-programmers-the-preface%2F)中读到过这样一句话：
+
+> **the essence of a category is composition**
+> 修言直译：**范畴论的本质就是复合**
+
+作为一个数学造诣不算很深的程序员，范畴论的本质到底是不是复合，咱也不知道，咱也不敢问，咱也不好下定论。
+
+但是作为一个死磕过函数式编程、并且在大型项目中反复实践过函数式编程的老开发，我可以非常确信地说，**范畴论对于函数式编程最关键的影响，就在于“复合”，或者说在于“函数的组合”**。
+
+因此，绕过范畴论来谈函数式编程，是不恰当的。
+
+尽管形如 Functor、Monad、Semigroup 和 Monoid 这样的“怪名字”，看上去确实有些劝退。但只要我们能把握住【复合】这一本质，恰当地从工程的视角建立起数学名词与函数逻辑之间的关系，再奇葩的名词也不过是我们信手拈来的编码工具而已。
+
+## 此盒又名 Functor（函子）
+
+> **A functor is something that can be mapped over.**
+> 修言直译：一个 Functor 就是一个能够被映射的“东西”。
+
+这句话里有两个关键字：“**东西**” 和 “**映射**”。
+
+在 JS 中，这个“**东西**”可以被看作一个盒子、一个容器，它本质上是一种数据结构，一种“类型”。
+
+而“**映射**”借助的就是 map 方法了。
+
+也就是说，**Functor 指的是一个实现了 map 方法的数据结构**。
+
+## 盒子模式下的代码组织方式
+
+Functor、Monad、Semigroup、Monoid......这些由范畴论推导出来的编码模式，我们可以记为“范畴论设计模式”。
+
+在修言的感性认知里，更习惯于把它们看作是“盒子模式”。
+
+因为这些概念的编码表达是非常相近的，它们彼此之间的差异主要在接口实现上。
+
+但纵使你把接口玩出花来，盒子就是盒子，盒子之间必定是有一些共性的。
+
+在深入分析具体的盒子之前，我们不妨先从整体上拿捏一下【盒子的共性】。
+
+### 盒子的实现有哪些规律？
+
+首先，**盒子是一个存放数据的容器**，它的内部肯定会维护一套数据。
+
+这套数据总是以盒子入参的形式传入，总是作为我们整个组合链的起点
+
+同时，**盒子内部可以定义一系列操作数据的函数**。
+
+这些函数未必需要具备【**创建并返回新的盒子**】的能力，但是**关键的函数、决定盒子性质的那些函数**，往往需要具备这个能力。
+
+以 Functor 为例，决定一个盒子能否成为 Functor 的是 map 函数，map 就是 Functor 的“关键函数”，map 必须具有【**创建并返回新的盒子**】的能力（如下图）。
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/cb7dc618cccf49b098ea5b2df36fc98b~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+### 盒子的本质是什么？
+
+盒子的本质是一套**行为框架**。
+
+对于盒子来说，其内部容纳的数据是动态的，而数据的**行为模式**是预定义的。
+
+以本文的 Box 为例，Box 函数会创建一个容器，对这个容器来说，入参 x 是未知的，但是针对 x 可以执行 map 行为是确定的。
+
+正是这个“map 行为” ，决定了 Box 容器是一个 Functor。
+
+# Functor(函子)："盒子模式"构造函数组合链
+
+## JS Functor 中的“顶流”——Array
+
+按照上一节我们对 Functor 的定义，Array 其实也属于是 Functor，它也是一种实现了 map 方法的数据结构。
+
+常见的 Array.prototype.map 调用如下：
+
+```js
+const fruits = ['apple', 'orange', 'banana', 'papaya']   
+
+const fruitsWithSugar = fruits.map((fruit)=> `Super Sweet ${fruit}`)
+```
+
+这里我定义了一个 fruits 数组，数组这个数据结构就可以被看作是一个盒子。
+
+就这个盒子来说，它盛放的数据是一套水果名称的集合。与此同时，它还实现了 map 方法。整体的结构如下图：
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/b77c699e8dd646ff9d0a592e22dc1aec~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+通过调用 map 方法，我们可以将盒子盛放的源数据映射为一套新的数据，并且新的数据也盛放在 Array 盒子里。
+
+整个过程如下图，这同样是一个藉由 map 方法创造新“盒子”的过程。
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/58720708a08f494a8dbcfa647884b6cc~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+## “Box”又名 Identity Functor
+
+在本册中，我们认识的第一个 Functor 其实是上一节中实现的 Box（代码如下），而不是 Array。
+
+```js
+const Box = x => ({
+  map: f => Box(f(x)),
+  valueOf: () => x
+})
+```
+
+这个 Box 其实是一种最简单的 Functor 。在这个 Functor 的 map 里，除了“执行回调f”之外，没有任何其他逻辑。
+
+它的存在有点像60年代登场的初代奥特曼，外形很朴素、招式很简单，但是具备了一个奥特曼应该有的所有要素。
+
+后续出现的中生代。新生代奥特曼等等，都要以它为蓝本制作——它本身就可以被视作是一种“标准”。
+
+这个 Box 还有一个学名，叫做 “Identity Functor”。
+
+```js
+const Identity = x => ({
+  map: f => Identity(f(x)),
+  valueOf: () => x
+})
+```
+
+为了标识 Functor 的类别，我们可以给它补充一个 inspect 函数：
+
+```js
+const Identity = x => ({
+  map: f => Identity(f(x)),
+  valueOf: () => x,
+  inspect: () => `Identity {${x}}`
+})
+```
+
+没错，Functor 世界里，也是有“类别”一说的。**同一类 Functor，往往具有相同的 map 行为**。
+
+通过往 map 行为里“加料”，我们就可以制作出不同的 Functor。
+
+## Maybe Functor：识别空数据
+
+### Maybe Functor 如何编码
+
+Maybe Functor 在 Identity Functor 的基础上，增加了对空数据的校验。
+
+在细说 Maybe Functor 之前，我们先来看它的代码：
+
+```js
+const isEmpty = x => x === undefined || x === null  
+
+const Maybe = x => ({
+  map: f => isEmpty(x) ? Maybe(null) : Maybe(f(x)),  
+  valueOf: () => x,  
+  inspect: () => `Maybe {${x}}`
+})
+```
+
+Maybe Functor 在执行回调函数 f 之前，会先执行校验函数 isEmpty。
+
+如果入参 x 为空（undefined 或者 null），那么 isEmpty 就会返回 true，接下来 map 方法就不会再执行 f 函数的，而是直接返回一个空的 Maybe 盒子。
+
+对于这个空的 Maybe 盒子来说，既然它盛放的数据是 null，那么无论我以什么样的姿势调用它的 map 方法，也都只能得到一个新的 Maybe(null) 而已。
+
+### Maybe Functor 是如何工作的
+
+```js
+function add4(x) {
+  return x + 4
+}  
+
+function add8(x) {
+  x + 8
+}
+
+function toString(x) {
+  return x.toString()
+}  
+
+function addX(x) {
+  return x + 'X'
+}  
+
+function add10(x) {
+  return x + '10'
+}
+
+const res = Maybe(10)
+              .map(add4)
+              .map(add8)
+              .map(toString)
+              .map(addX)  
+              .inspect()
+
+// 输出 Maybe {null}
+console.log(res)
+```
+
+其中 add8 这个函数是有问题的，我在定义它的时候，手滑了，没有写 return。
+
+这就会导致 add8 在任何情况下都会输出 `undefined`。
+
+也就是说，当执行到 map(add8) 这一行的时候，`Maybe(null)` 已经出现了。
+
+而 `Maybe(null)`相当于是一个“终结者”，只要它一出现，就掐灭了后续所有 map 调用的可能性——这些 map 都只会返回 `Maybe(null)`而已。
+
+### 为什么我们需要 Maybe Functor
+
+试想，如果我们选择的盒子不是 Maybe Functor，而是 Identity Functor，彼时的调用链将会是一个什么样的光景呢？
+
+这里我以身试法，让控制台来告诉大家答案：
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/28d50bb3f7c14fbb874c88a1d83d40dc~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+没错，报错是必然的。因为 add8 返回的 undefined 畅通无阻地走进了 toString 的逻辑里，toString 将会尝试去调用 undefined 上的 toString 方法，这显然是违法的。
+
+在 JS 里，一旦 throw Error，就意味着整个程序 crash 了。除了当前的函数调用链被终止外，程序后续的其它逻辑也无法再运行了。
+
+而 Maybe Functor 则能够把这个错误控制在组合链的内部。
+
+这就好像我们开车从杭州出发，走高速去上海团建。
+
+赶上饭点，又不想下高速，就直接在车里吃点KFC疯狂星期四解决了。
+
+如果我把吃剩下的汉堡、饮料罐子等东西直接丢出车窗，等待我的将是交警的罚单，相当于我把“异常”丢到外面（高速上）去了，**这是对外部环境的污染，是一种副作用**。
+
+万一我的垃圾不小心砸中了哪个司机，可能就引发连环车祸了，这条高速也就瘫痪了。
+
+更好的做法，是我把垃圾揣到怀里，等下了高速后，找个垃圾桶“输出”一下。
+
+Maybe 就仿佛是交警叔叔那无形的手，它能够控制乘客们把垃圾保留在车厢内部，不到行车终点，绝不乱丢垃圾。
+
+## 拓展：Functor 的“生存法则”
+
+一个合法的 Functor 需要满足以下条件：
+
+1. 恒等性（Identity）
+2. 可组合性（Composition）
+
+### 恒等性
+
+所谓“恒等性”，是说如果我们传递了一个恒等函数（Identity Function ）到盒子的 map 方法里，map 方法创建出的新盒子应该和原来的盒子等价。
+
+“恒等函数”长这样：
+
+```js
+const identity = x => x
+```
+
+以 Array 为例，我们试着在 Array 的 map 方法里传入 identity：
+
+```js
+const originArr = [1, 2, 3]  
+
+const identityArr = originArr.map(x=>x)  
+
+// 输出 [1, 2, 3]  
+console.log(identityArr)
+```
+
+可见，将恒等函数传入 map 后，最终的映射结果 identityArr 和源数据 originArr 是等价的。
+
+这条规则的目的有二：
+
+其一，是为了确保你的 map 方法具备“创造一个新的盒子（Functor）”的能力。
+
+决定一个接口是否“配”做 map 的并不是它的名字，而是它的行为。
+
+而 map 接口对应的行为，就应该是**映射**——把数据从一个盒子映射到另一个盒子里去
+
+其二，是为了确保你的 map 方法足够“干净”。
+
+说到底，map 方法只是一个行为框架，尽管不同的 Functor 会往 map 方法里加不同的料，但这些“料”都不能改变其“行为框架”的本质。
+
+所谓“行为框架”，就意味着 map 方法的主要作用是串联不同的行为（函数），而不是编辑这些行为。
+
+恒等性可以确保 map 方法本身是没有“小动作”的。
+
+### 可组合性
+
+可组合性可以直接用一行代码来解释：
+
+```js
+Functor.map(x => f(g(x))) = Functor.map(g).map(f)
+```
+
+这个就比较直观了，它要求 Functor 能够**将嵌套的函数拆解为平行的链式调用**。
+
+### Functor，黑盒般强大的组合姿势
+
+“盒子模式”的存在，绝不仅仅是换个姿势实现 compose/pipe 这么简单。
+
+通过往盒子里“加料”，我们可以**在实现组合的同时，内化掉类似空态识别这样的逻辑。**
+
+从“面子”上看，Functor 为我们提供了更加强大的组合能力。
+
+从“里子”上来说，**Functor 在实现函数组合的基础上，确保了副作用的可控**。
+
+# Monad(单子)："嵌套盒子"问题解法
+
+通过往 map 方法里“加料”，我们可以拓展 Functor 的能力，进而定制出不同类型的 Functor。
+
+事实上，除了往 map 方法里“加料”以外，我们还有另一种拓展 Functor 的思路，那就是**在保有 map 方法的基础上，往盒子里添加新的方法**。
+
+而 Monad，正是在这个思路上衍生出来的。
+
+## 何为Monad
+
+Monad 中文叫做“单子”，它是一种**特殊的 Functor**（函子）。
+
+Functor 是“一个实现了 map 方法的盒子”。
+
+而 Monad，则是“一个实现了 flatMap 方法的 Functor”。
+
+也就是说，**Monad 是一个同时实现了 map 方法和 flatMap 方法的盒子**。
+
+## "嵌套盒子"问题
+
+嵌套的盒子，这里指的是在 Functor 内部嵌套 Functor 的情况。
+
+会导致嵌套 Functor 的场景有很多，这里我举两个比较典型的 case：
+
+- 线性计算场景下的嵌套 Functor —— Functor 作为另一个 Functor 的计算中间态出现
+- 非线性计算场景下的嵌套 Functor —— 两个 Functor 共同作为计算入参出现
+
+### 线性计算场景下的嵌套 Functor
+
+考虑这样一个函数：它接收一个用户 id 作为入参，用于检查该用户是否在用户列表中。如果是，则取 id 的前三位作为用户的默认昵称，并将昵称和id一起返回；否则，视为异常。
+
+这个函数实现如下:
+
+```js
+// 这里省略 isExisted 的实现，大家知道它是用来检查 id 存在性的即可
+import isExisted from './utils'  
+
+const getUser = id => {  
+  if(isExisted(id)) {
+    return {
+      id,
+      nickName: String(id).slice(0, 3)
+    }
+  } else {
+    throw new Error("User not found")
+  }
+}
+```
+
+借助 Maybe Functor，我们可以简单包装一下这个查找过程：
+
+```js
+import isExisted from './utils' 
+
+const isEmpty = (x) => x === undefined || x === null;
+
+const Maybe = (x) => ({
+  map: (f) => (isEmpty(x) ? Maybe(null) : Maybe(f(x))),
+  valueOf: () => x,
+  inspect: () => `Maybe {${x}}`,
+});
+
+const getUserSafely = id => {  
+  try {
+    const userInfo = getUser(id)
+    return Maybe(userInfo)
+  } catch(e) {
+    return Maybe(null)
+  }
+}
+```
+
+这里为了验证方便，我实现一个作弊版的 isExisted，这个函数将会在 id 为 3 的倍数时返回 true，在其他情况下返回 false：
+
+```js
+const isExisted = id => id % 3 === 0
+```
+
+将这个 isExisted 代入楼上的示例代码，我们就可以检验 getUserSafely 的执行效果了：
+
+```js
+const res = getUserSafely(1110021)  
+
+// 输出 'Maybe {[object Object]}'
+res.inspect()
+
+// 输出 {id: 1110021, nickName: '111'}
+res.valueOf()
+```
+
+经过这样一番调整后，getUserSafely 函数在任何情况下都会返回一个 Maybe Functor。
+
+这时，如果我想要在一个 Maybe Functor 的 map 方法中，调用这个 getUserSafely 方法，比如这样：
+
+```js
+const targetUser = {
+  id: 1100013,  
+  credits: 2000,  
+  level: 20
+}  
+
+const userContainer = Maybe(targetUser)  
+
+const extractUserId = user => user && user.id
+
+const userInfo = userContainer.map(extractUserId)
+                          .map(getUserSafely)
+```
+
+这一波操作下来，最终得到的 userInfo 就会是一个嵌套的 Maybe Functor：
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/486b3aa49706488298dde948dc85103f~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+在这个例子中，我们看到的是一个线性的计算过程：
+
+整个计算过程中，真正作为数据源存在的，有且仅有 targetUser，我们把 targetUser 放进 Maybe 盒子里，然后在这个盒子的基础上一次又一次地调用 map，对源数据 targetUser 做一次又一次的加工。
+
+之所以会出现嵌套的 Functor，是因为在加工 targetUser 的过程中，出现了 getUserSafely() 这样一个返回 Functor 的函数。
+
+这也就是所谓的“**Functor 以计算中间态的形式出现**”。
+
+对于 map 接收的回调参数 f 来说，f 预期的入参往往是数据本身，而不是一个装着数据的盒子。
+
+假设我在 getUserSafely 之后还有一个 cryptoUser 的回调需要执行，也就是说要像下面这样延长原有的调用链：
+
+```js
+const crypteUser = (userInfo) => {
+  // ..省略一些加密的具体逻辑
+}   
+
+const cryptedUserInfo = userContainer.map(extractUserId).map(getUserSafely).map(crypteUser)	
+```
+
+cryptoUser 预期中的输入是一个包含了 id 和 nickName 的 user 对象，但实际上它得到的输入却是一个装有 user 对象的 Maybe Functor 盒子。
+
+这显然是要出问题的。
+
+那么如何在不破坏链式结构的前提下，打开这个盒子、把数据拿出来用呢？
+
+这里我们对于解法先按下不表，继续来看嵌套盒子的另一种 case：非线性计算。
+
+### 非线性计算场景下的嵌套 Functor
+
+考虑这样一个函数：它用于计算一个学生的期末成绩，接收两个入参：学生的文化课分数（generalScore)，以及学生的体育课分数（healthScore）。将这两个分数分别乘以各自的权重（文化课对应权重High，体育课对应权重Low），最后得到一个总分。
+
+函数实现如下：
+
+```js
+// 该函数将对给定 score 作权重为 high 的计算处理
+const highWeights = score => score*0.8
+
+// 该函数将对给定 score 作权重为 low 的计算处理
+const lowWeights = (score) => score*0.5
+
+const computeFinalScore = (generalScore, healthScore) => {
+  const finalGeneralScore = highWeights(generalScore)  
+  const finalHealthScore = lowWeights(healthScore)  
+  return finalGeneralScore + finalHealthScore
+}
+```
+
+我们借助 Identity Functor 对这个计算流程进行改造如下：
+
+```js
+const computeFinalScore = (generalScore, healthScore) =>
+  Identity(highWeights(generalScore)).map((finalGeneralScore) =>
+    Identity(lowWeights(healthScore)).map(
+      (finalhealthScore) => finalGeneralScore + finalhealthScore
+    )
+  );
+```
+
+在这个例子中，我们看到的是一个非线性的计算过程：
+
+generalScore 和 healthScore 同时作为数据源存在，都是 computeFinalScore 函数的入参。从逻辑上来说，它们应该是平行的关系。
+
+尽管盒子模式也能够支持逻辑上的平行关系，甚至能够支持异步。但盒子模式的调用总是链式的、线性的。
+
+因此，当我们用盒子模式去实现非线性的计算过程的时候，就不得不像示例这样，把另一个数据源 healthScore 也包装成一个盒子，放进 generalScore 的 map 里面去。
+
+这种情况下，也会导致嵌套 Functor 的产生。
+
+### 嵌套Functor的解法思考
+
+创建 Functor，是一个把数据放进盒子的过程。而消除嵌套，则是一个“打开盒子”的过程。
+
+以线性计算示例中的 userInfo 为例，要打开这个盒子，我们需要执行两次 valueOf：
+
+```js
+userInfo.valueOf().valueOf()
+```
+
+这个写法，不优雅倒还是其次，关键是这多出来的 valueOf() 调用放在哪里合适呢？
+
+放在下一个 map 的回调里吗？
+
+假设我在 getUserSafely() 之后还有一个 cryptoUser() 回调需要执行，是不是 cryptoUser() 就需要承担起“打开盒子”这个任务了？
+
+但我的 cryptoUser 原本只是一个负责加密用户信息的函数，它没有义务去理解自己所在的执行上下文是什么样的，更没有必要为 getUserSafely() 造成的问题买单。
+
+硬要把“打开盒子”的任务交给 cryptoUser，**反而会污染 cryptoUser 本身的逻辑**。
+
+我们知道，在盒子模式中，盒子的【行为】大体上可以分为两类：
+
+- 回调函数的行为，也就是 map 方法中传入的那个 f。这个 f 是灵活可变的，我们可以通过 map 来组合各种各样不同的 f。我们把 f 记为“**自定义行为**”。
+- 盒子本身预设的行为，比如 Functor 盒子中的 map。这个 map 的行为是确定的、不可变的，我们把这样的行为记作“**基础行为**”。
+
+既然“自定义行为”没法干这个“打开盒子”的活，我们就只能往“基础行为”上使使劲儿啦。
+
+### flatMap: 打开盒子, 取出数据
+
+目前看来，我们需要的是这样一个“基础行为”：预期 map(f) 会返回一个嵌套的盒子，并且能够主动把套在里面那个盒子取出来。
+
+说白了，不就是在 map 结束之后，再调一次 valueOf()么：
+
+```js
+const Monad = x => ({
+  map: f => Monad(f(x)),
+  valueOf: () => x,
+  inspect: () => `Monad {${x}}`,
+
+  // 新增一个主动打开盒子的方法 flatMap 
+  flatMap: f => map(f).valueOf()
+})
+
+const monad = Monad(1) 
+const nestedMonad = Monad(monad)  
+
+// 试试会发生什么？
+nestedMonad.flatMap()
+```
+
+如果直接把这段代码丢进控制台运行，你将会得到这样一个报错：
+
+![image.png](https://p9-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/39bd6458506a4c6b8fc6eec881e6c29f~tplv-k3u1fbpfcp-jj-mark:2041:0:0:0:q75.awebp)
+
+这是因为我们试图在 flatMap 中试图去调用另一个与它平级的对象方法 map，由于两个方法实际上并不在同一个上下文里，调用 map 的动作是注定要失败的。
+
+这里就引出了盒子模式中的另一个重要的方法：of()。
+
+### 拓展: of 方法, OPP? FP?
+
+如何把一个盒子中的两个方法，放进同一个上下文里？
+
+答案是创建一个 Class，像这样：
+
+```js
+class Monad { 
+  constructor(x) {
+    this.val = x
+  }
+
+  map(f) { 
+    return Monad.of(f(this.val)) 
+  } 
+  
+  flatMap(f) { 
+    return this.map(f).valueOf()
+  }
+
+  valueOf() {
+    return this.val
+  }
+}
+
+Monad.of = function(val) {
+  return new Monad(val);
+}  
+
+const monad = Monad.of(1)  
+const nestedMonad = Monad.of(monad)  
+
+// 输出 Monad {val: 1}，符合“不嵌套”的预期
+console.log(nestedMonad.flatMap(x => x))
+```
+
+对于 JS 来说，FP 和 OOP 之间并没有想象中的那么泾渭分明。
+
+有一些语言是天然有“人设”的，比如：当你写 Java 的时候，你就只想 OOP；当你写 Haskell 的时候，你就只想 FP。
+
+相比之下，JS 就中庸得多了。
+
+从语言实现的层面来说，它的 Function 就是 Object，Object 也是 Function......FP 和 OOP 之间俨然是一种“你中有我，我中有你”的暧昧关系。
+
+从范式本身来看，我们写 FP 确实是要和 OOP 不一样的，这一点至少要在编码风格上体现出来。
+
+也正是出于这个动机，FP 借助 Class 实现 Functor 和 Monad 这类盒子的时候，并不会把“我是一个 Class”这件事摆在明面上。
+
+一个最典型的小细节，就是如上面这个示例一样，**把构造函数的调用包装成一个 of 方法，以此来摆脱 `new XXX()` 这样高度不和谐的 OOP 代码**。
+
+### flatMap 的极简实现
+
+书归正传，其实在我们这个案例中，根本用不到 of 来创建上下文。
+
+map 方法做了什么事情？map 方法执行了 f 回调，然后把执行结果 f(x) 放进了盒子里。
+
+flatMap 想要做什么事情？flatMap 方法想要把这个执行结果 f(x) 从盒子里拿出来。
+
+既然 flatMap 想要的是 f(x)，那它一开始直接不把 f(x) 往盒子里放不就行啦？
+
+所以咱的 flatMap 也可以这样实现：
+
+```js
+const Monad = x => ({
+  map: f => Monad(f(x)),
+  // flatMap 直接返回 f(x) 的执行结果
+  flatMap: f => f(x),
+
+  valueOf: () => x,
+  inspect: () => `Monad {${x}}`,
+})
+```
+
+整体的结构看上去很简单，实际上它也就是这么简单。
+
+我们把非线性计算案例中 Identity Functor 替换成 Monad，map 替换成 flatMap，嵌套盒子的问题瞬间得解：
+
+## 总结: map VS flatMap
+
+写了这么多代码，我们最后来总结一下 flatMap 的特征。
+
+flatMap 和 map 其实很像，区别在于他们对回调函数 `f(x)` 的预期：
+
+**map 预期 `f(x)` 会输出一个具体的值**。这个值会作为下一个“基础行为”的回调入参传递下去。
+
+而 **flatMap 预期 `f(x)` 会输出一个 Functor**，它会像剥洋葱一样，把 Functor 里包裹的值给“剥”出来。确保最终传递给下一个“基础行为”的回调入参，仍然是一个具体的值。
+
+符合这个特征的方法不一定总是叫 flatMap，它有许多别名：chain、fold、flatten......等等等等。
+
+不管这个方法叫啥，只要它在 Functor 的基础上，实现了楼上描述的这个“剥洋葱”般的逻辑，它都足以将一个 Functor 拓展为 Monad。
+
+毕竟，盒子的本质，是一套“**行为框架**”。
+
+决定一个盒子能否成为 Functor 或 Monad 的，并不是方法的命名，而是方法的**行为**。
