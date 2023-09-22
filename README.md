@@ -1602,3 +1602,419 @@ flatMap 和 map 其实很像，区别在于他们对回调函数 `f(x)` 的预�
 毕竟，盒子的本质，是一套“**行为框架**”。
 
 决定一个盒子能否成为 Functor 或 Monad 的，并不是方法的命名，而是方法的**行为**。
+
+# Semigroup(半群) 与 Monoid(幺半群)
+
+Functor（函子）、Monad（单子）一样，Semigroup（半群）和 Monoid（幺半群）也是正经八百的范畴论名词。
+
+Semigroup（半群）可以通过我们最熟悉的加法乘法来推导，而 Monoid（幺半群）又可以基于 Semigroup 来推导。
+
+## Semigroup（半群） 的数学背景
+
+### 理解“结合律”与“闭合”
+
+加法和乘法有两个关键的共性：
+
+1. 它们都满足结合律。
+2. 它们都是闭合的。
+
+#### 结合律
+
+在加法和乘法运算中，在各个数字位置不变的情况下，重新排列表达式中的括号，并不会影响最终的计算结果。 这样的运算就是符合结合律的。
+
+#### 闭合
+
+在数学中，闭合意味着我们对某个集合的成员进行运算后，生成的仍然是这个集合的成员。
+
+整数做完加法/乘法后，得到的计算结果也是一个整数。这也就是所谓的“闭合”。
+
+### 理解数学中的 Semigroup
+
+理解了“**结合律**”和“**闭合**”，其实也就理解了什么是数学中的 **Semigroup**：
+
+> 在数学中，半群是闭合于结合性二元运算之下的集合 S 构成的代数结构。——wikipedia
+
+【划重点】：**闭合、结合性、二元运算**
+
+> “二元运算”这里的“元”，映射到程序里就是指函数参数的数量。
+
+Functor（函子）盒子，Monad（单子）盒子，这两个盒子有一个明显的共性——它们的计算单元都是**一元函数**
+
+而 Semigroup 直接把“二元运算”打在了公屏上，明牌告诉咱们 Semigroup 盒子的“基本行为”函数应该是一个**二元函数**。
+
+## Semigroup 在函数式编程中的形态
+
+在整数运算的加法/乘法中，+/* 是一个运算符，可以用来计算两个任意的整数以获得另一个整数。因此，加法运算/乘法运算在所有可能的整数集合上形成一个 Semigroup。
+
+这个逻辑其实是可以直接往 JS 中做映射的——在 JS 中，我们同样有**运算符**、有包括整数在内的各种**数据类型**，同样可以实现各种各样的**计算过程**。
+
+### JS 语言中的 Semigroup
+
+因此，首先我们可以明确的是，整数的加法和乘法运算即便是到了 JS 里面，也是标准的 Semigroup。
+
+除了整数的加法和乘法之外，常见的几个 JS 中的 Semigroup 还包括：
+
+- (boolean, &&)，布尔值的“与”运算
+- (boolean, ||)，布尔值的“或”运算
+- (string, +/concat) ，**字符串的拼接（并集）运算**
+- (Array, concat)，**数组的拼接（并集）运算**
+
+#### 数组和字符串的共性
+
+- 数组取并集运算能够形成一个 Semigroup（半群），字符串取并集运算也能够形成一个 Semigroup（半群）。
+- 数组取并集的方法是 `concat()`，字符串取并集的方法也是 `concat()`。
+
+但与其说这是一种巧合，不如说这是一种**模式**。
+
+因为在函数式编程的实践中，**Semigroup 盒子的接口方法（也就是我们常说的“基础行为”）正是这个 `concat()`！**
+
+### 函数式编程中的 Semigroup 盒子
+
+Semigroup 中总是有以下两个要素：
+
+- **运算数**：参与运算的数据。比如加法运算中的 1、2、3，与运算中的 true、false 等。
+- **运算符**：执行运算的符号。比如 +、*、||、&& 等等等等......
+
+映射到函数式编程来看的话，运算数可以理解为**函数的入参**，运算符则可以被抽象为**一个 concat() 函数**。
+
+```js
+// 定义一个类型为 Add 的 Semigroup 盒子
+const Add = (value) => ({
+  value,  
+  // concat 接收一个类型为 Add 的 Semigroup 盒子作为入参
+  concat: (box) => Add(value + box.value)
+})   
+
+// 输出一个 value=6 的 Add 盒子
+Add(1).concat(Add(2)).concat(Add(3))
+```
+
+在这段代码中，我们将运算符 `concat()` 和运算数 `value` 都包裹在了一个名为 `Add` 的盒子中。
+
+`concat()` 接口能够同时拿到**当前盒子**的运算数 `value`和**下一个盒子**的运算数 `box.value`，它会基于这两个运算数执行**二元运算**，最后把**二元运算**的结果包裹在一个新的 `Add` 盒子中返回。
+
+`concat()` 接口是 Semigroup 盒子的核心，它能够消化任何可能的 Semigroup 运算。**`concat()`接口宛如一条【线】，它能够将链式调用中前后相邻的两个【点】（也就是“盒子”）串联起来，进行盒子间的二元运算。**
+
+我们可以用`Semigroup(x).concat(Semigroup(y))` 来表示一个最小的二元运算单元，一个 Semigroup 盒子的二元运算过程就如图所示：
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/347fdeeb805b47af9dc37a96cfe5f6e9~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+`concat()`函数能够消化任何可能的 Semigroup 运算。我们把加法盒子 `Add` 中的 `concat()` 函数稍作调整，把加号替换为乘号，就能够得到一个乘法运算的 Semigroup 盒子：
+
+```js
+// 定义一个类型为 Multi 的 Semigroup 盒子
+const Multi = (value) => ({
+  value,  
+  // concat 接收一个类型为 Multi 的Semigroup 盒子作为入参
+  concat: (box) => Multi(value * box.value)
+})   
+
+// 输出一个 value=60 的 Multi 盒子
+Multi(3).concat(Multi(4)).concat(Multi(5))
+```
+
+形如 Add 盒子、Multi 盒子这样，实现了 `concat()`接口的盒子，就是 **Semigroup**（半群）盒子。
+
+## 由 Semigroup 推导 Monoid
+
+理解了 Semigroup（半群），也就理解了 Monoid（幺半群）。
+
+> A *monoid* is an algebraic structure intermediate between *semigroups* and groups, and is a *semigroup* having an identity element. ——Wikipedia
+> 修言直译：Monoid 是一种介于 Semigroup 和 group 之间的代数结构，它是一个拥有了 identity element 的半群。
+
+【划重点】：Monoid 是一个拥有了 identity element 的半群——**Monoid = Semigroup + identity element**
+
+那么什么是 identity element 呢？
+
+这个东西在数学上叫做“单位元”。 单位元的特点在于，**它和任何运算数相结合时，都不会改变那个运算数**。
+
+在函数式编程中，单位元也是一个函数，我们一般把它记为“`empty()` 函数”。
+
+**也就是说，Monoid = Semigroup + `empty()` 函数。**
+
+`empty()` 函数的实现取决于运算符的特征。比如说，加法运算的单位元，就是一个恒定返回 Add(0) 的函数：
+
+```js
+// 定义一个类型为 Add 的 Semigroup 盒子
+const Add = (value) => ({
+  value,  
+  // concat 接收一个类型为 Add 的 Semigroup 盒子作为入参
+  concat: (box) => Add(value + box.value)
+})   
+
+
+// 这个 empty() 函数就是加法运算的单位元
+Add.empty = () => Add(0)
+
+// 输出一个 value=3 的 Add 盒子
+Add.empty().concat(Add(1)).concat(Add(2))
+```
+
+`empty()` 是单位元的代码形态。单位元的特点在于，**它和任何运算数相结合时，都不会改变那个运算数**。 也就是说，`empty()`**函数的返回值和任何运算数相结合时，也都不会改变那个运算数。**
+
+```js
+const testValue = 1  
+const testBox = Add(testValue)  
+
+// 验证右侧的 identity（恒等性），rightIdentity 结果为 true
+const rightIdentity = testBox.concat(Add.empty()).value === testValue
+```
+
+还是把 `empty()`放在 `concat()`运算符的左边：
+
+```js
+const testValue = 1  
+const testBox = Add(testValue)    
+
+// 验证左侧的 identity（恒等性），leftIdentity 结果为 true
+const leftIdentity = Add.empty().concat(testBox).value === testValue
+```
+
+`empty()` 总是不会改变运算符另一侧的 `testBox` 盒子的值，这就是“单位元”特征的体现。
+
+**任意一个 Semigroup 盒子与** `empty()`**一起进行`concat()`二元运算时，其运算结果都一定恒等于那个 Semigroup 盒子本身的值。**
+
+**形如这样的** `empty()`**函数，就是“单位元”思想在函数式编程中的实践。**
+
+**而实现了** `empty()`**函数的 Semigroup 盒子，就是 Monoid 盒子。**
+
+# Monoid、Compose中的复合本质
+
+## `concat()` 与 `reduce()` ：从二元运算到 n 元运算
+
+“连点成线”般的二元运算，可不是 `concat()`的专利。在遇到 `concat()`之前，我们其实已经和具备“二元运算符”特征的函数打过不少交道了。
+
+没错，我说的就是 `Array.prototype.reduce(callback, initialValue)` 里的那个 `callback()`。
+
+`callback()`和 `concat()`的工作流是极为相似的。
+
+我们首先来看 `concat()`接口组织起来的二元运算工作流，考虑这样一个链式的 `concat()` 调用：
+
+```js
+// 定义一个类型为 Add 的 Monoid 盒子
+const Add = (value) => ({
+  value,  
+  // concat 接收一个类型为 Add 的 Monoid 盒子作为入参
+  concat: (box) => Add(value + box.value)
+})   
+
+
+// 这个 empty() 函数就是加法运算的单位元
+Add.empty = () => Add(0)  
+
+const res = Add(1)
+              .concat(Add(2))
+              .concat(Add(3))
+              .concat(Add(4))
+
+// 输出 10
+console.log(res.value)
+```
+
+它拉起来的二元运算工作流如下图所示：
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/ecc54367df754726addbebc84c708e8a~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+接着我们考虑这样一个 reduce 调用：
+
+```js
+const callback = (x, y) =>  x + y   
+
+const res = [1, 2, 3, 4].reduce(callback, 0) 
+
+// 输出 10
+console.log(res)
+```
+
+它拉起来的二元运算工作流如下图所示：
+
+![img](https://p3-juejin.byteimg.com/tos-cn-i-k3u1fbpfcp/0d64b4bd8375473eb22e94311e84b9e0~tplv-k3u1fbpfcp-jj-mark:2268:0:0:0:q75.awebp)
+
+这两张图不能说是一模一样吧，只能说是十分相似。
+
+别的不说，就“**两两组合，循环往复**”这个流程特征来说，两者是高度一致的。
+
+主要的区别在于，`concat()`方法的宿主可以是**任意一个 `Semigroup/Monoid` 盒子**，而 `callback()`和 `reduce()`一起，依附于数组数据结构而存在。
+
+最重要的是，`reduce()`还能够通过反复地调用`callback()`，来**将有限的二元运算延伸至无限的 n 元运算**。
+
+`concat()` 和 `callback()` 这么相似，`concat()`是不是也能和 `reduce()`打配合呢？
+
+到这里，图穷匕见，华点也呼之欲出： 在实践中，**Monoid 常常被放在** `reduce` **的** `callback` **中参与计算。**
+
+以加法运算为例，我们重新审视一下 Monoid 做加法的姿势：
+
+一个 `concat()`函数一次只能求和两个数字，一旦数字多起来，我们就不得不重复执行许多次“将数字放进 Add 盒子，再调用 Add 盒子上的 `concat()`方法”这个过程。
+
+如果能把 `Add` 盒子放进 `reduce()` 的 `callback()`里，就可以省去这类重复的操作。顺着这个思路，我们可以将楼上的链式调用改造如下：
+
+```js
+// 定义一个类型为 Add 的 Monoid 盒子
+const Add = (value) => ({
+  value,  
+  // concat 接收一个类型为 Add 的 Monoid 盒子作为入参
+  concat: (box) => Add(value + box.value)
+})   
+Add.empty = () => Add(0)     
+
+
+// 把 Add 盒子放进 reduce 的 callback 里去
+const res = [1, 2, 3, 4].reduce((monoid, num) => monoid.concat(Add(num)), Add(0))
+```
+
+如此，我们便能够借助 `reduce()`方法，写出更加简洁的盒子代码。
+
+## `empty()`函数解决了什么问题
+
+**`empty()`函数能够解决 n 元运算中的计算起点（也即“初始值”）不存在的问题**，这一点我们可以结合楼上的例子来看。请大家关注到 `reduce()`调用这一行：
+
+```js
+// 把 Add 盒子放进 reduce 的 callback 里去
+const res = [1, 2, 3, 4].reduce((monoid, num) => monoid.concat(Add(num)), Add(0))
+```
+
+`reduce()`接口缺少了初始值，会导致第一次的 `monoid.concat()`调用失败。
+
+我在加法 Monoid 的代码里，使用 `Add(0)`作为计算起点，顺利地规避掉了这个问题。那么如果我们的 Monoid 从加法 `Add`变为了乘法 `Multi`，计算起点的值又该如何调整呢？
+
+其实，无论是 Add 还是 Multi，无论是求和还是求积，我们对计算起点的预期总是一致的——**它得是一个 Monoid/Semigroup 盒子（能够提供** `concat() `**接口），并且它的值不应该对计算结果产生任何影响**。
+
+也就是说，**计算起点和任何运算数结合的时候，都不应该改变那个运算数。** 细品一下，这说的不就是 Monoid 的单位元——`empty()`函数么？
+
+循着这个思路，我们不难想到，乘法盒子的计算起点应该是 Multi(1)，也就是 `Multi.empty()` 的返回值：
+
+```js
+// 定义一个类型为 Multi 的 Monoid 盒子
+const Multi = (value) => ({
+  value,  
+  // concat 接收一个类型为 Multi Monoid 盒子作为入参
+  concat: (box) => Multi(value * box.value)
+})     
+Multi.empty = () => Multi(1)     
+
+
+// n 元运算的计算起点是单位元函数 empty()
+const res = [1, 2, 3, 4].reduce((monoid, num) => monoid.concat(Multi(num)), Multi.empty())
+```
+
+到这里，`empty()`在实践中的作用就非常清晰了——当二元运算被拓展为 n 元运算时，我们需要 `Monoid.empty()`作为计算起点，进而规避空值的问题。
+
+## `concat()` + `reduce()` 推导 `foldMap()` 函数
+
+这里我用 Monoid 来表示一个任意的 Monoid 盒子，用 arr 来表示一个任意的数组，`concat()`+`reduce()`的组合代码就可以抽象如下：
+
+```js
+arr.reduce((monoid, value) => monoid.concat(Monoid(value)), Monoid.empty())
+```
+
+在实践中，这段代码还有另一种写法，那就是先调用 `map()`，将数组中的所有元素都包装成 Monoid，然后再进行 `reduce()`调用，像这样：
+
+```js
+arr
+  .map((value)=> Monoid(value))
+  .reduce((monoid, currentMonoid) => monoid.concat(currentMonoid)), Monoid.empty())
+```
+
+无论是直接 `reduce()`，还是先 `map()`再 `reduce()`，它们最终的目的都是“**实现 n 元的 Monoid 盒子运算**”。
+
+在实际的项目中，一旦我们用到了盒子模式，“实现 n 元的 Monoid 盒子运算”就总是会成为一个非常高频的操作。正因为如此，我们一般不会等到使用的时候再去手动实现这些代码，而是会把这坨逻辑提取到一个工具函数里，以备不时之需。这个工具函数的名字，就叫做`foldMap()`。
+
+对于`foldMap()`来说，“实现 n 元的 Monoid 盒子运算”这个功能是固定的，而“运算符（也即 Monoid 盒子的类型）”以及“运算数（也即数组的内容）”则是动态的。动态信息总是以函数参数的形式传入。也就是说，`foldMap()`函数的入参，就是楼上模板代码中的 `Monoid` 和 `arr`。
+
+分析至此，`foldMap()`的代码也就写完了：
+
+```js
+// 这里我以 map+reduce 的写法为例，抽象 foldMap() 函数
+const foldMap = (Monoid, arr) => 
+                  arr
+                    .map(Monoid)
+                    .reduce(
+                      (prevMonoid, currentMonoid) => prevMonoid.concat(currentMonoid),
+                      Monoid.empty()
+                    )  
+
+// 定义 Multi 盒子
+const Multi = (value) => ({
+  value,  
+  concat: (box) => Multi(value * box.value)
+})     
+Multi.empty = () => Multi(1)   
+
+// 使用 foldMap 实现 Multi 盒子求积功能   
+const res = foldMap(Multi, [1, 2, 3, 4])   
+
+// 输出 24， 求积成功
+console.log(res.value)
+```
+
+## 从 Monoid 到函数组合
+
+### compose 特征：两两组合、循环往复
+
+compose 的过程，也是一个“**两两组合、循环往复**”的过程，是一个**由二元运算拓展至 n 元运算的过程**。
+
+一个大的 compose，可以看作是无数个小的 compose 单元的组合。每个 compose 单元，都只会组合两个函数。这个最小的 compose 单元，用代码表示如下：
+
+```js
+const compose = (func1, func2) => arg => func1(func2(arg))
+```
+
+### compose 与 Monoid 的共性
+
+Monoid = Semigroup + `empty()`函数。
+
+我把 Semigroup 的特征代入这个公式，就能得到 Monoid 的特征：Monoid = 闭合 + 结合律 + 二元运算 + `empty()` 函数
+
+Monoid 所具备的这些特征，compose 全中。
+
+#### compose 是闭合的二元运算
+
+我们不妨把“组合（compose）”这个动作看作一个运算符，把参与组合的函数看作是运算数，那么总是有：
+
+```js
+func1 compose func2 = func3
+```
+
+一个函数 compose 另一个函数，总是能得到一个新的函数。运算符没有改变运算数的类型，因此 compose 运算是一个闭合的运算。
+
+同时，compose 运算是一个“两两组合”的运算，也符合二元运算的特征。
+
+#### compose 是符合结合律的
+
+对于任意的三个函数 func1、func2、func3，总是有这样的规律：
+
+```js
+compose(
+  compose(func1, func2),
+  func3
+) = compose(
+  func1,
+  compose(func2, func3)
+)
+```
+
+### compose 的单位元如何实现
+
+分析至此，`compose()`已经命中了 Semigroup 的全部特征：闭合、结合律、二元运算。它与 Monoid，只差一个 `empty()`单位元函数了。
+
+`compose()`的单位元函数，就是 `Identity Function`（恒等函数）
+
+```js
+const identity = x => x
+```
+
+恒等函数本身不包含任何的计算修改逻辑，它所做的仅仅是吃进一个入参，然后把它原封不动地吐出来，俗称“透传”。 一个“透传”函数和任何函数结合，都不会改变那个函数的运算结果。因此，恒等函数就是函数组合的“单位元”。
+
+至此我们发现，当我们把 `compose()`的最小计算单元视作一个运算符、把函数组合视作一个代数运算后，我们竟能从中挖掘出 `Monoid`的所有特征。
+
+## 范畴的本质是复合
+
+**范畴的本质是复合。 从实践的角度看，范畴论在 JS 中的应用，本质上还是为了解决函数组合的问题。**
+
+`compose()`函数组合的是函数本身，而 `foldMap()`函数组合的则是不同的 Monoid 盒子。
+
+那么如果更进一步地问：组合（Composition）是一个什么样的过程？
+
+这两种函数消化的入参类型不同，函数体的编码实现不同，但它们的逻辑特征却高度一致：**通过多次执行二元运算，将有限的二元运算拓展为无限的 n 元运算。**
+
+两两结合，循环往复，聚沙成塔——这，就是“组合”过程。
