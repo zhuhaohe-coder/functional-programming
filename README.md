@@ -2018,3 +2018,779 @@ const identity = x => x
 这两种函数消化的入参类型不同，函数体的编码实现不同，但它们的逻辑特征却高度一致：**通过多次执行二元运算，将有限的二元运算拓展为无限的 n 元运算。**
 
 两两结合，循环往复，聚沙成塔——这，就是“组合”过程。
+
+# 面向对象 VS 函数式
+
+FP 和 OOP 是两种截然不同的软件世界观。无论是辩证地看待两种世界观，还是单纯地“信仰”其中某一种，都需要建立在充分理解和掌握两者的前提上。
+
+遗憾的是，在我们所生存的现实世界中，OOP 往往主宰了很多开发者的思维。当你手里只有一把锤子的时候，你看什么都像钉子。
+
+> 这就好像一个人一生只见过一种世界观、也只能理解这一种世界观，由于他不听、不看、不思考任何其它的世界观，于是只能被迫地狂热痴迷这唯一的一种世界观，这就谈不上信仰与否，而是被世界观所奴役了。
+
+## 软件复杂度的两种解法
+
+作为两种截然不同的软件世界观，FP 和 OOP 的差异是巨大的，两者的效用却又是高度一致的，**它们都能够帮助我们解决软件复杂度的问题**。
+
+- **抽象**：OOP 将数据与行为打包抽象为对象，对象是一等公民；而 FP 将行为抽象为函数，数据与行为是分离的，函数是一等公民。
+- **代码重用**：OOP 的核心在于继承，而 FP 的核心在于组合。
+
+## 抽象: 谁是一等公民?
+
+**重行为、轻数据结构**的场景---FP
+
+**重数据结构、轻行为**的场景---OOP
+
+### FP：函数是一等公民
+
+在 FP 的世界里，函数是绝对的主角。
+
+以网课需求为例，它是一个典型的**动词**占据主导的需求：喜欢、注册、清空、检查......全都是对行为的描述，显然，这是一个行为密集型的需求。并且需求中的数据源 `user` 是清晰的、确定的。整个功能流程梳理下来，其实是一个点对点的数据转换过程。这样的场景，用 FP 求解是再舒服不过的。
+
+FP 构造出的程序，就像一条长长的管道。管道的这头是源数据，管道的那头是目标数据——数据本身是清晰的、确定的、不可变的。**数据不是主角，那些围绕数据展开的行为才是主角。“行为”也就是函数**，一个小的行为单元，就仿佛是一根小小的管道。我们关心的，是如何把一节一节简单的小管道组合起来，进而得到一个复杂的、功能强大的大管道。
+
+### OOP：对象是一等公民
+
+OOP 思想起源于对自然界的观察和抽象，它是对现实世界的一种隐喻。“类”的概念在我们生活中本来就很常见，图书馆的书籍分类、生物学的“界门纲目科属种”、社会上对不同职业不同身份的人的分类等等......这些都是在**通过寻找事物之间的共性，来抽象出对一类事物的描述**。
+
+既然描述的是【事物】，那么 OOP 的世界毫无疑问是一个**名词**占据主导的世界。在 OOP 的语境下，我们关注的不是一个个独立的函数单元，而是一系列有联系的属性和方法。**我们把相互联系的属性和方法打包，抽象为一个“类”数据结构**。当我们思考问题的时候，**我们关注的不是行为本身，而是谁做了这个行为，谁和谁之间有着怎样的联系**。
+
+以游戏场景为例：在游戏的过程中，选手这个角色存在着大量可能的变体；不同的选手之间还会有大量的关系逻辑需要考虑；在每个选手的内部，还会维护自己独有的状态信息（比如`CrazyPlayer`的余额信息）。此时，摆在我们面前的不再是一个个平行的数据管道，而是一张复杂交错的实体关系网。这样的业务场景下，用 OOP 建模会更加贴合我们人类的思维习惯——毕竟，OOP 本身也是对现实世界的一种隐喻嘛！
+
+## 代码重用: 组合 VS 继承
+
+面向对象（OOP）的核心在于继承，而函数式编程（FP）的核心在于组合。
+
+组合的过程是一个两两结合、聚沙成塔的过程；
+
+继承则意味着子类在父类的基础上重写/增加一些内容，通过创造一个新的数据结构来满足的新的需求。
+
+### 继承的问题
+
+我们知道，子类和父类之间的关系，是一种紧耦合的关系——父类的任何变化，都将直接地影响到子类。而当我们定义父类的时候，其实并不能预测到未来的变化，无法预测这个父类未来会变成什么样子。借助继承来实现代码重用时，我们总是需要非常小心——我们修改任何一个类的时候，都要考虑它是否会对其它的类带来意料之外的影响。而当继承层次过深的时候，这份”小心“往往使得我们寸步难行。
+
+在 OOP 的语境下，我们解决“继承滥用”问题的一个重要方法，就是引入“组合”思想。
+
+### 为 OOP 引入“组合”思想
+
+以楼上的游戏案例为蓝本。我们目前已经创造了三个 Class，它们分别是：
+
+- BasketballPlayer：篮球选手，会灌篮（ `slamdunk()` ) ，会跳跃（ `jump()` )
+- FootballPlayer：足球选手，会射门( `shot()` ），会狂奔（ `runFast()` ）
+- CrazyPlayer：疯狂号选手，会飞（ `fly()` ）
+
+游戏版本的迭代总是很快的。没过几天，李雷的老板坐不住了，他嫌疯狂号选手赚钱不够快。怎么办呢？升级！升级一个大满贯选手，它既能灌篮、又能射门、还会飞。有这么多神技能，就不怕没人愿意充钱啦！
+
+但是请注意，这个大满贯选手（`SuperPlayer`）只需要具备那些最酷炫的能力：比如它只需要篮球选手的“灌篮”能力，不需要“跳跃”能力；它只需要足球选手的“射门”能力，不需要“狂奔”能力。这也合理，毕竟，人家都会飞了，也就不需要跑和跳了。
+
+此时，如果我们借助继承来解决这个问题，就得让`SuperPlayer`同时继承 3 个 Class，用伪代码示意如下：
+
+```js
+js复制代码SuperPlayer
+  extends BasketballPlayer 
+    extends FootballPlayer
+      extends CrazyPlayer
+```
+
+这样一来，`SuperPlayer` 就被迫拥有了它并不需要也并不想要的的“射门”和“狂奔”能力。
+
+但这还不是最糟糕的，最糟糕的是，这个 `SuperPlayer` 它其实既不是篮球选手、也不是足球选手、也不是疯狂号选手——`SuperPlayer` 和篮球/足球/疯狂号选手的交集，其实仅限于一个灌篮/射门/奔跑动作而已。今后篮球/足球/疯狂号选手新增的任何属性和方法，都很可能是和我 `SuperPlayer` 没有关系的，
+
+SuperPlayer 选手想要的明明只有几个特定的函数，我们却不得不曲线救国、把它变成一个既是篮球选手、又是足球选手、同时还是疯狂号选手的缝合怪。这一缝不要紧，以后任何一种选手的 Class 发生变更，都会直接影响到 SuperPlayer 这个最能赚钱、也最特别的选手。风险这么大，谁还敢再动那些父类呢？
+
+这个例子虽然不复杂，但是已经足够把继承带来的问题具象化。此时我们不妨像下面这样，为程序引入组合：
+
+```js
+js复制代码// 这个函数单独处理 slamDunk 能力
+const getSlamDunk = (player) => ({
+  slamDunk: () => {
+    return `${player.name} just dunked a basketball`
+  }
+})
+
+// 这个函数单独处理 shot 能力
+const getShot = (player) => ({
+  shot: () => {
+    return `${player.name} just shot the goal`
+  }
+})
+
+// 这个函数单独处理 fly 能力
+const getFly = (player) => ({
+  fly: () => {
+      if(player.money > 0) {
+          // 飞之前，先扣钱
+          player.money--
+          // 飞起来啦，好帅呀！
+          return `${player.name} is flying!So handsome!`
+      }
+      // player.money <= 0，没钱还想飞，你也配？（狗头
+      return 'you need to give me money'
+    }
+})
+
+const SuperPlayer = (name, money) => {
+  // 创建 SuperPlayer 对象
+  const player = {
+    name,  
+    sport: 'super',  
+    money
+  }
+
+  // 组合多个函数到 player 中
+  return Object.assign(
+    {},  
+    getSlamDunk(player),
+    getShot(player),  
+    getFly(player)
+  )
+}
+
+const superPlayer = SuperPlayer('xiuyan', 20)  
+// 'xiuyan just dunked a basketball'
+superPlayer.slamDunk()  
+// 'xiuyan just shot the goal'
+superPlayer.shot() 
+// 'xiuyan is flying!So handsome!'
+superPlayer.fly()
+```
+
+这样一来，我们就用组合的方法，改造了原有的继承链，一举端掉了继承所带来的各种问题。
+
+## 小结
+
+在“抽象”这个话题下，我支持大家遵循自己的思维习惯，选择自己最认同的一种思维模式组织自己的程序。但在“代码重用”这个话题下，我的观点会更加鲜明一些——**组合就是比继承好，能用组合就不要用继承**。
+
+组合作为一种代码重用的思路，它固然是 FP 的关键特征，但它却并不是 FP 的专利。很多时候，即便我们用 OOP 去抽象整体的程序框架，也不影响我们在程序的局部使用“组合”来解决代码重用的问题。楼上的 `SuperPlayer`就是一个很好的例子。在实现 `SuperPlayer`的过程中，我们并没有改变原有的程序格局，也就是说，整个游戏仍然可以是基于 OOP 来抽象角色和角色关系的。我们仅仅是在需要实现代码重用时，引入了组合这种方法。
+
+JS 语言非常特别，它的对象和函数之间没有特别清晰的边界，函数和对象都可以视作是一等公民（甚至函数本身就是一种可执行的对象）。在项目中混合使用多种范式开发，对于我们来说是极度正常的一件事情——**即使选择了 FP 作为程序的主要范式，仍然免不了要使用对象这种数据结构；即使选择了 OOP 作为程序的主要范式，也避不开函数这种抽象方式。**因此我始终认为，**OOP 和 FP 之间并不是互斥/对立的关系，而是正交/协作的关系**。
+
+# 函数式编程在React中的实践
+
+React 是一个用于构建用户界面的 JS 库（严格来说是库，但“框架”似乎也已经成为一种约定俗成的叫法，下文不做区分）。
+尽管它不是一个严格意义上的函数式编程框架，但它在设计和实践中很大程度上受到了函数式思想的影响，“含 FP 量”较高。
+
+## 框架设计
+
+### 宏观设计：数据驱动视图
+
+众所周知，React 的核心特征是“**数据驱动视图**”，这个特征在业内有一个非常有名的函数式来表达：
+
+![img](D:\QDstudy\前端笔记合集\书籍\JavaScript\函数式编程-code\README.assets\477d33a011234bd5b99ecd739c462cd1tplv-k3u1fbpfcp-jj-mark1701000q75.webp)
+
+这个表达式有很多的版本，一些版本会把入参里的 data 替换成 state，但它们本质上都指向同一个含义，那就是 **React 的视图会随着数据的变化而变化**。
+
+#### React 组件渲染的逻辑分层
+
+随手写一个 React 组件：
+
+```jsx
+const App = () => {
+  const [num, setNum] = useState(1)  
+
+  return <span>{num}</span>
+}
+```
+
+用 babel 转换一遍这段代码，可以得到下图右侧的结果：
+
+![img](D:\QDstudy\前端笔记合集\书籍\JavaScript\函数式编程-code\README.assets\92f82d1da81f45cfbee769d82e0a8967tplv-k3u1fbpfcp-jj-mark1701000q75.webp)
+
+**JSX 的本质，是** `React.createElement` **这个 JS 调用的语法糖。**
+
+`React.createElement`做了什么事情？它能够直接渲染出真实的 DOM 组件吗？
+
+答案是不能，`React.createElement`计算出来的那玩意儿叫做虚拟 DOM，虚拟 DOM 仅仅是对真实 DOM 的一层描述而已。要想把虚拟 DOM 转换为真实 DOM，我们需要调用的是 `ReactDOM.render()`这个 API ：
+
+```jsx
+// 首先你的 HTML 里需要有一个 id 为 root 的元素
+const rootElement = document.getElementById("root")
+// 这个 API 调用会把 <App/> 组件挂载到 root 元素里
+ReactDOM.render(<App />, rootElement)
+```
+
+也就是说，在 React 组件的初始化渲染过程中，有以下两个关键的步骤：
+
+- 结合 state 的初始值，计算 `<App />` 组件对应的**虚拟 DOM**
+- 将虚拟 DOM 转化为**真实 DOM**
+
+相似地， React 组件的更新过程，同样也是分两步走：
+
+- 结合 state 的变化情况，计算出虚拟 DOM 的变化
+- 将虚拟 DOM 转化为真实 DOM
+
+现在我们再回头看 `UI = f(data)`这个公式。
+
+其中 `data`这个自变量，映射到 `React`里就是 `state`。
+
+> 注：社区中还有 `UI=f(state, props)`这种写法，这种写法认为 React 中的数据需要被严格地分类为 `props`和`state`。我个人更认同 `UI = f(data)`或`UI = f(state)`这种写法，因为子组件的 `props`本身也是父组件的 `state`。倘若我们把整个 React 应用看作一个大的整体，而不是去看父子组件之间的微观关系，那么 React 应用中的驱动 UI 变化的数据其实只有 `state`。
+
+`f()`函数则对应的是 React 框架内部的运行机制，结合上文的分析，这套运行机制整体上可以分为两层（如下图所示）：
+
+![img](D:\QDstudy\前端笔记合集\书籍\JavaScript\函数式编程-code\README.assets\41844dba075f419b8cc76a3dae2190b5tplv-k3u1fbpfcp-jj-mark1701000q75.webp)
+
+- **计算层**：负责根据 state 的变化计算出虚拟 DOM 信息。这是一层较纯的计算逻辑。
+- **副作用层**：根据计算层的结果，将变化应用到真实 DOM 上。这是一层绝对不纯的副作用逻辑。
+
+将较纯的计算与不纯的副作用分离，从这样的宏观设计中，我们已经可以初步窥得函数式编程的影子。
+
+在 `UI = f(data)` 这个公式中，数据是自变量，视图是因变量。
+
+而**组件**作为 React 的核心工作单元，其作用正是**描述数据和视图之间的关系**。
+
+也就是说，若是把这个公式代入到微观的组件世界中去，那么 React 组件毫无疑问对应的就是公式中的 `f()` 函数。
+
+### 组件设计：组件即函数
+
+> 组件，从概念上类似于 JavaScript 函数。它接受任意的入参（即 “props”），并返回用于描述页面展示内容的 React 元素。 ——React 官方文档
+
+定义一个 React 组件，其实就是定义一个吃进 props、吐出 UI（注意，此处的 UI 指的是对 UI 的描述，而不是真实 DOM，下文同） 的函数：
+
+```jsx
+function App(props) {
+  return <h1>{props.name}</h1>
+}
+```
+
+如果这个组件需要维护自身的状态、或者实现副作用等等，只需要按需引入不同的 Hooks（下面代码是一个引入 `useState`的示例）：
+
+```jsx
+function App(props) {
+  const [age, setAge] = useState(1)
+  
+  return (
+    <>
+      <h1> {props.name} age is {age}</h1>
+      <button onClick={() => setAge(age+1)}>add age</button>
+    </>
+  );
+}
+```
+
+**从趋势上看，函数组件+ React-Hooks 才是 React 的未来**。
+
+### 函数组件的心智模型：如何函数式地抽象组件逻辑
+
+在 React-Hooks 推出以前，React 函数组件的定位仅仅是**对类组件的一种补充**。
+
+当时有一个很热门的 React 面试题，问“什么是 React 无状态组件”。其实无状态组件就是函数组件的一个别名——在缺少 Hooks 加持的情况下，函数组件内部无法定义和维护 state，便表现为所谓的“stateless（无状态）”。
+
+在那时，函数组件能够，也仅仅能够完成从 props 到 UI 的映射——这样的转换逻辑是**绝对纯的、没有任何副作用的**。这一时期的函数式组件，毫无疑问是**纯函数**。
+
+直到 React-Hooks 的出现，才允许函数组件“**拥有了自己的状态**”（注意，这句话我打了个引号，这是个伏笔，下文很快会收回）。像这样：
+
+```jsx
+function App(props) {
+  const [age, setAge] = useState(1)
+  return (
+    <>
+      <h1> {props.name} age is {age}</h1>
+      <button onClick={() => setAge(age+1)}>add age</button>
+    </>
+  );
+}
+```
+
+对于这个函数组件来说，即便输入相同的 props，也不一定能得到相同的输出。这是因为函数内部还有另一个变量 `state`。从这个角度看，它似乎没那么纯了。
+
+**真的没那么纯了吗？**
+
+`useState()` 的状态管理逻辑是在哪里维护的？是在`App()`函数的内部？还是在 `App()`函数之外呢？
+
+答案是，在 `App()` 函数之外！
+
+函数执行过程是一次性的，函数是没有记忆的。如果 `useState()` 是在 `App()`函数内部维护组件状态，那么每次组件渲染时，伴随着 `App()`函数执行完毕，`App()`内部的状态应该和函数上下文一起被销毁了才对。
+
+这样的话，每次调用 `App()`函数，我们进入的都应该是一个全新的上下文，每次最多只能拿到状态的初始值而已。
+
+但现实是，不管 `App`组件渲染（`App`组件渲染===`App()`函数执行）了多少次，`useState()`总是能“记住”组件最新的状态——这意味着`App()`函数上下文被销毁时，它所对应的组件状态其实被保留了下来。要做到这一点，只能是把状态独立到 `App()`的外面去维护。
+
+> 注：这种 Hook 与组件之间的松耦合关系，并不是 `useState()`所特有的，而是所有 React Hooks 的共性。
+
+也就是说，对于函数组件来说，state 本质上也是一种**外部数据**。**函数组件能够消费 state，却并不真正拥有 state** 。
+
+当我们在函数体内调用 `useState()` 的时候，相当于把函数包裹在了一个具备 `state` 能力的“壳子”里。只是这层“壳子”是由 React 实现的，我们作为用户感知不到，所以看起来像是函数组件“拥有了自己的状态”一样。
+
+这样说可能有点抽象，用这段伪代码来示意可能会更通透一些：
+
+```jsx
+function Wrapper({state, setState}) {
+  return <App state={state} setState={setState}/>
+}
+```
+
+尽管真实的 `useState`源码并不是这样写的（比这个复杂得多），但是真实的 `useState`源码同样是在 `App()`函数之外维护 `state`，同样会在 `state`发生变化时，像 `Wrapper`一样去触发 `App()`函数的再执行（也即`App`组件的“重渲染”）。
+
+也就是说，至少从逻辑上来看，`Wrapper`这段伪代码足以描述 `useState`和函数组件之间的关联关系——`useState`所维护的状态(`state`），本质上和 `props`、`context`等数据一样，都可以视作是 `App`组件的 **“外部数据”，也即** `App() `**函数的“入参”** 。
+
+我们用 `FunctionComponent` 表示任意一个函数组件，函数组件与数据、UI 的关系可以概括如下：
+
+```jsx
+UI = FunctionComponent(props, context, state)
+```
+
+**对于同样的入参（也即固定的** `props` **、** `context` **、** `state` **），函数组件总是能给到相同的输出。因此，函数组件仍然可以被视作是一个“纯函数”。**
+
+由此我们可以看出：**Hook 对函数能力的拓展，并不影响函数本身的性质。函数组件始终都是从数据到 UI 的映射，是一层很纯的东西**。而以 `useEffect`、`useState` 为代表的 Hooks，则负责消化那些不纯的逻辑。比如状态的变化，比如网络请求、DOM 操作等副作用。
+
+**也就是说，在组件设计的层面，React 也在引导我们朝着“纯函数/副作用”这个方向去思考问题**。
+
+在过去，设计一个 Class 组件，我们需要思考“**如何将业务逻辑解构到五花八门的生命周期里**”。
+
+而现在，设计一个函数组件，我们关注点则被简化为“**哪些逻辑可以被抽象为纯函数，哪些逻辑可以被抽象为副作用**”（如下图）。
+
+![img](D:\QDstudy\前端笔记合集\书籍\JavaScript\函数式编程-code\README.assets\a068ef2656674613a90ee2ceacdb17bctplv-k3u1fbpfcp-jj-mark1701000q75.webp)
+
+我们关注的细节变少了，需要思考的问题变少了，抽象的层次更高了——**React 背靠函数式思想，重构了组件的抽象方式，为我们创造了一种更加声明式的研发体验。**
+
+### 函数组件的心智模型：如何函数式地实现代码重用
+
+在代码重用这个方面，React 其实一直是很“函数式”的。
+
+即便是在 Class 组件占据统治地位的时期，React 官方在代码重用方面的建议也是“要组合，不要继承”
+
+在组合思想的渗透下，发展出了“React 设计模式”这种东西，经典的 React 设计模式包括但不限于：
+
+- 高阶组件
+- render props
+- 容器组件/展示组件
+- ...
+
+在过去，这些设计模式曾一度被奉为“金科玉律”，也曾是各厂前端面试的热门考点。但在今天，随着“函数组件+Hooks”的推广，“金科玉律”逐渐也变成了“老黄历”——**过去需要设计模式来解决的问题，今天大多都可以用 Hooks 求解，并且解法更简洁、更优雅、更“函数式”**。
+
+旧版本 React 选用 Class 组件作为主要的逻辑载体。在当时，为了写出高质量、易维护的 React 代码，我们不得不求助于各种各样的 React 设计模式，而这些设计模式本身又是函数式的。
+
+这种别扭的状态持续了数年，大多数的开发者都不觉得有什么不对，甚至认为“React 就该这样学”。
+
+直到4年前，Hooks 的出现使得函数组件具备了“扛大旗”的能力、React 进一步“函数式”化。这时大家才逐渐意识到：原来，“**设计模式”对于 React 来说，并不是一个必选项，而更像是一个“补丁”** ——当编程范式与框架底层逻辑略显违和时，我们需要额外学习大量的设计模式作为补充；当**编程范式和框架底层逻辑高度契合**时，我们只需要闭眼梭哈就够了。
+
+## 应用研发
+
+### 函数式的React 代码重用思路
+
+#### 高阶组件（HOC）的函数式本质
+
+> 高阶组件（HOC）是 React 中用于复用组件逻辑的一种高级技巧。HOC 自身不是 React API 的一部分，它是一种==基于 React 的组合特性而形成的设计模式==。 具体而言，**高阶组件是参数为组件，返回值为新组件的==函数==。** ——React 官方文档
+
+在这段描述里，有两个华点，是值得我们细细品味的：
+
+- 高阶组件是**函数**
+- 高阶组件是一种基于 React 的**组合特性**而形成的设计模式
+
+##### 高阶组件是函数
+
+【划重点1】：**高阶组件是函数，** 一种吃进组件、吐出新组件的函数。
+
+无论是名字还是内涵，“高阶组件”这玩意儿都很难让人不联想到我们聊过的 HOF（高阶函数）。
+
+> 高阶函数，指的就是接收函数作为入参，或者将函数作为出参返回的函数
+
+高阶函数的主要效用在于**代码重用**，高阶组件也是如此。
+
+**当我们使用函数组件构建应用程序时，高阶组件就是高阶函数。**
+
+##### 要组合, 不要继承
+
+**【划重点2】：** 高阶组件“是一种基于 React 的**组合特性**而形成的设计模式”。
+
+**即便是在 Class 组件占据统治地位的时期，React 官方在代码重用方面的建议也是“要组合，不要继承”。** 高阶组件就是一个活生生的例子。
+
+更进一步地，当我们需要同时用到多个高阶组件时，甚至直接可以使用函数式编程中喜闻乐见的 `compose` 函数来组合这些高阶组件，像这样：
+
+```jsx
+// 定义一个 NetWorkComponent，组合多个高阶组件的能力
+const NetWorkComponent = compose(
+  // 高阶组件 withError，用来提示错误
+  withError,
+  // 高阶组件 withLoading，用来提示 loading 态
+  withLoading,
+  // 高阶组件 withFetch，用来调后端接口
+  withFetch
+)(Component)
+
+const App = () => {
+  ...
+
+  return (
+    <NetWorkComponent
+      // params 入参交给 withFetch 消化
+      url={url}
+      // error 入参交给 withError 消化
+      error={error}  
+      // isLoading 入参交给 withLoading 消化
+      isLoading={isLoading}
+    />
+  )
+}
+```
+
+毕竟，高阶组件本质上也是函数，组合高阶组件，就是在组合函数——都组合函数了，不拉`compose`出来溜溜怎么行？
+
+这又是 `HOF`、又是 `compose`的，不得不说，高阶组件身上确实叠了不少函数式的 buff。作为类组件时期的代表性设计模式，高阶组件的存在和流行足以向我们证明：**无论组件的载体是类还是函数，React 的代码重用思路总是函数式的。**
+
+#### 高阶组件（HOC）的局限性
+
+让我们来看看下面这个高阶组件，它被用来进行条件渲染：
+
+```jsx
+import React from 'react'
+
+const withError = (Component) => (props) => {
+  if (props.error) {
+    return <div>Here is an Error ...</div>
+  }
+
+  return <Component {...props} />
+}
+
+export default withError
+```
+
+如果有一个错误，它就渲染一个错误信息。如果没有错误，它将渲染给定的组件。
+
+尽管今天的 Hooks 已经能够在许多场景下取代高阶组件，但在“条件渲染”这个场景下，使用高阶组件仍然不失为一个最恰当的选择——毕竟，**Hooks 能够 return 数据，却不能够 return 组件**。
+
+因此，抛开前提去谈 `HOC`的局限性显然是不合适的。具体到本文来说，当我们探讨 `HOC`的局限性时，我们探讨的并不是类似“条件渲染”这种场景，而是对【**状态相关的逻辑】** 的重用。
+
+比如下面这个高阶组件：
+
+```jsx
+import React from "react"
+
+// 创建一个 HOC, 用于处理网络请求任务
+const withFetch = (Component) => {
+    
+  // 注意，处理类组件时，HOC 每次都会返回一个新的类
+  class WithFetch extends React.Component {
+    constructor(props) {
+      super(props)
+      this.state = {
+        data: {},
+      }
+    }
+
+    componentDidMount() {
+      // 根据指定的 url 获取接口内容
+      fetch(this.props.url)
+        .then((response) => response.json())
+        .then((data) => {
+          this.setState({ data })
+        })
+    }
+
+    render() {
+      // 将目标数据【注入】给 Component 组件
+      return (
+        <>
+          <Component {...this.props} data={this.state.data} />
+        </>
+      )
+    } 
+  }
+  
+  // 这行完全是 debug 用的，由于高阶组件每次都会返回新的类，我们需要 displayName 帮我们记住被包装的目标组件是谁
+  WithFetch.displayName = `WithFetch(${Component.name})`
+  
+  // 返回一个被包装过的、全新的类组件
+  return WithFetch
+};
+
+export default withFetch
+```
+
+这个组件主要做了这么几件事：
+
+- 它根据 `this.props` 中指定的 url，请求一个后端接口
+- 将获取到的数据(`data`)以 `state` 的形式维护在高阶组件的内部
+- 将高阶组件内部的 `state.data` 以 `props` 的形式传递给目标组件 `Component`
+
+用一句话来概括这个过程：**高阶组件把状态【注入】到了目标** `Component`**里。**
+
+当任何一个组件 `Component` 需要应用同样的逻辑时，只需要像这样轻轻地在它外面包一层 `withFetch`，就可以【被注入】自己想要的数据：
+
+```jsx
+const FetchCommentComponent = withFetch(Component)
+```
+
+这 HOC 用起来确实比无脑复制粘贴高级的多，但它并不是完美的。随着应用复杂度的提升，HOC 的局限性也就跟着显现了。
+
+##### 可读性问题
+
+咱们上文说过，组合多个高阶组件，可以使用 `compose`。
+
+随着应用的迭代，我们会发现，`Component`仅仅具备“获取数据”这一个能力是不够的，产品经理希望你为它增加以下功能：
+
+1. 在请求发起前后，处理对应的 Loading 态（对应 HOC `withLoading`）
+2. 在请求失败的情况下，处理对应的 Error 态（对应 HOC `withError`）
+
+```jsx
+// 定义一个 NetWorkComponent，组合多个高阶组件的能力
+const NetWorkComponent = compose(
+  // 高阶组件 withError，用来提示错误
+  withError,
+  // 高阶组件 withLoading，用来提示 loading 态
+  withLoading,
+  // 高阶组件 withFetch，用来调后端接口
+  withFetch
+)(Component)
+
+const App = () => {
+  // 省略前置逻辑...
+
+  return (
+    <NetWorkComponent
+      // url 入参交给 withFetch 消化
+      url={url}
+      // error 入参交给 withError 消化
+      error={error}  
+      // isLoading 入参交给 withLoading 消化
+      isLoading={isLoading}
+    />
+  )
+}
+```
+
+这个版本的代码是最理想的——参数名和 HOC 名严格对照，我们可以轻松地推导 `props`和`HOC`之间的关系。此时，整个组件的工作流和传参方式都是比较清晰的。
+
+但很多时候，我们见到的代码是这样的：
+
+```jsx
+// 定义一个 NetWorkComponent，组合多个高阶组件的能力
+const NetWorkComponent = compose(
+  // 高阶组件 withError，用来提示错误
+  withError,
+  // 高阶组件 withLoading，用来提示 loading 态
+  withLoading,
+  // 高阶组件 withFetch，用来调后端接口
+  withFetch
+)(Component)
+
+const App = () => {
+  // 省略前置逻辑...
+
+  return (
+    <NetWorkComponent
+      // url 入参交给 withFetch 消化
+      url={url}
+      // icon 入参是服务于谁的呢？
+      icon={icon}
+      // image 入参是服务于谁的呢？
+      image={icon}
+    />
+  )
+}
+```
+
+由于大家已经亲眼见过 `withFetch` 的实现，这里我们自然知道 `url`是供 `withFetch`消化的参数。但是 `icon`参数和 `image`参数又是为谁服务的呢？是为另外两个 HOC 服务的，还是为 `Component`组件本身服务的？
+
+如果不去细看 `withLoading`和`withError`的具体实现逻辑，我们很难推测这些 `props`到底应该传什么样的值。
+
+尽管这样的代码已经给我们构成一些研发阻力，但这还不是最糟的情况——至少，案例中`withFetch`的逻辑对我们来说仍然是透明的。
+更多的时候，我们见到的是下面这样的代码：
+
+```jsx
+// 定义一个 NetWorkComponent，组合多个高阶组件的能力
+const NetWorkComponent = compose(
+  // 高阶组件 withError，用来提示错误
+  withError,
+  // 高阶组件 withLoading，用来提示 loading 态
+  withLoading,
+  // 高阶组件 withNewFetch，用来调后端接口
+  withNewFetch
+)(Component)
+
+const App = () => {
+  ...
+
+  return (
+    <NetWorkComponent
+      // params 入参是服务于谁的呢？
+      params={params}
+      // icon 入参是服务于谁的呢？
+      icon={icon}
+    />
+  )
+}
+```
+
+在这个 case 中，三个 `HOC`的内部实现我们都是不清楚的，`props`数量也从 3 个变成了 2 个。此时，理解代码的成本就更高了。
+
+以上几种 case，我们讨论的都是 HOC 和 `props`之间的关系模糊问题。其实 HOC 模糊的地方不止这一处——HOC 和被包装组件`Component`之间的关系也是模糊的：由于 `HOC`对组件的包装是“不留痕迹”的（见`withFetch`示例中对“`displayName`”的注释解析），一个 `Component`被 `HOC`包装后，它会变成一个全新的组件，这就导致`HOC`层面的 bug 非常难以追溯。迫于此，我们不得不手动在每个 HOC 中标记`displayName`，但这相当于打了个补丁，治标不治本。
+
+至于如何治“本”，这里先按下不表，咱们先顺着既有的思路，把“HOC 的局限性”这条线给讲完。
+
+##### 命名冲突问题
+
+这个问题就比较好理解了。假设我在同一个 `Component`里，想要复用两次 `withFetch`，代码该怎么写呢？
+
+写成下面这样行不行呢：
+
+```jsx
+const FetchForTwice = compose(
+  withFetch,
+  withFetch,
+)(Component)
+
+const App = () => {
+  ...
+
+  const userId = '10086'
+
+  return (
+    <FetchForTwice
+      // 这个 url 用于获取用户的个人信息
+      url={`https://api.xxx/profile/${userId}`}
+      // 这个 url 用于获取用户的钱包信息
+      url={`https://api.xxx/wallet/${userId}`}
+    />
+  );
+};
+```
+
+显然是不行的，众所周知，当出现两个同名的 `props`时，后面那个（钱包接口 url）会把前面那个（个人信息接口 url）覆盖掉。也就是说，`FetchForTwice`确实能够 `fetch`两次接口，但这两次`fetch`动作是重复的，每次都只会去`fetch`用户的钱包信息而已。
+
+#### render props的正反两面
+
+render props 被认为是比 HOC 更加优雅的代码重用解法。这里提及 render props，并不是为了教大家怎么做“HOC vs render props”这道老八股面试题，而是为了给大家看下面这张图：
+
+![img](D:\QDstudy\前端笔记合集\书籍\JavaScript\函数式编程-code\README.assets\a050795d41694bec96227122fc21ff8dtplv-k3u1fbpfcp-jj-mark2268000q75.webp)
+
+图中的代码是我基于楼上 HOC 的 `withFetch`简单改写出的 render props 版本。这里简单介绍一下：`this.props.render()`可以是任意的一个函数组件，像这样：
+
+```jsx
+<FetchComponent
+  render={(data) => <div>{data.length}</div>}
+  />
+```
+
+将这个 `props.render`代入楼上的 `FetchComponent`，我们看到的代码会更直观一些，如下图：
+
+![img](D:\QDstudy\前端笔记合集\书籍\JavaScript\函数式编程-code\README.assets\c26e91d3173f42bc8d68fb4a20444747tplv-k3u1fbpfcp-jj-mark2268000q75.webp)
+
+这里我最想要大家关注的是我用红色方框圈出的这两个部分，这也是我认为 render props 最进步的一个点——它区分了两个不同的逻辑层次：上面的红色方框圈住的是“**数据的准备工作**”（充满副作用），下面的红色方框圈住的则是“**数据的渲染工作**”（纯函数）。
+
+> 注意，这里的【渲染工作】指的是将数据映射为“对UI的描述”，而不是真实的 DOM渲染过程。这个【渲染工作】的载体是一个纯的函数组件，因此咱们说【渲染工作】是【纯函数】。
+
+**也就是说，从 render props 这个模式开始，我们已经初步地在实践“pure/impure 分离”的函数式思想。**
+
+然而，render props 也存在着这样那样的局限性，其中一个最经典的问题莫过于“**嵌套地狱**”问题了。比如我真的在一些存量项目中见过类似这样的代码（下图已脱敏）：
+
+![img](D:\QDstudy\前端笔记合集\书籍\JavaScript\函数式编程-code\README.assets\5026aa00e90a414db62db7a898faa144tplv-k3u1fbpfcp-jj-mark2268000q75.webp)
+
+但整体来说，render props 的进步意义还是非常值得肯定的。
+
+### 函数组件 + Hooks实现代码重用
+
+ 铺垫完了 HOC 和 render props，终于要引出【函数组件 + Hooks】了。
+
+首先再次声明，Hooks 是无法完全替代 HOC 和 render props 的。关于这个问题，React 官方的 Q&A 说得很清楚（传送门：[Hooks FAQ](https://link.juejin.cn/?target=https%3A%2F%2Fzh-hans.reactjs.org%2Fdocs%2Fhooks-faq.html%23do-hooks-replace-render-props-and-higher-order-components)）：
+
+![img](D:\QDstudy\前端笔记合集\书籍\JavaScript\函数式编程-code\README.assets\6ec5742f11844748bb0d19cc7280ad9ftplv-k3u1fbpfcp-jj-mark2268000q75.webp)
+
+图上这个回答中提到的“大部分场景”就包括本文探讨的目标场景：对【**状态相关的逻辑】** 的重用 **。**
+
+以 HOC 话题下的 `NetWorkComponent`组件为例，使用 Hooks，我们可以将它重构成这样：
+
+```jsx
+const NewWorkComponent = () => {
+  const {data, error, isLoading} = useFetch('xxx')  
+  if(error) {
+    // 处理错误态
+  }
+  if(isLoading) {
+    // 处理 loading 态
+  }
+  return <Component data={data} />
+}
+```
+
+由于不存在 `props`覆盖的问题，对于需要分别调用两次接口的场景，只需要像这样调用两次`useFetch`就可以了：
+
+```jsx
+const NewWorkComponent = ({userId}) => {
+  const {
+    data: profileData, 
+    error: profileError 
+    isLoading: profileIsLoading
+  } = useFetch('https://api.xxx/profile/${userId}')  
+  const {
+    data: walletData, 
+    error: walletError 
+    isLoading: walletIsLoading
+  } = useFetch('https://api.xxx/wallet/${userId}')    
+
+  // ...其它业务逻辑
+    
+  return <Component data={data} />
+}
+```
+
+以 render props 话题下的“嵌套地狱”组件为例，使用 Hooks，我们可以将它的嵌套部分重构成这样：
+
+```jsx
+const user = useUser()
+const mouse = useMouse()
+const scroll = useScroll()
+const style = useMotion()
+const size = useMeasure()
+
+return <ConsumingComponent 
+         user={user}
+         mouse={mouse} 
+         scroll={scroll} 
+         style={style} 
+         size={size} 
+           />
+
+```
+
+从以上的重构结果，我们可以看出：Hooks 能够帮我们在【**数据的准备工作**】和【**数据的渲染工作**】之间做一个更清晰的分离。
+具体来说，在 render props 示例中，我们并不想关心组件之间如何嵌套，我们只关心我们在 render props 函数中会拿到什么样的值；在 HOC 示例中，我们也并不想关心每个 HOC 是怎么实现的、每个组件参数和 HOC 的映射关系又是什么样的，我们只关心目标组件能不能拿到它想要的 `props` 。但在【函数组件+Hooks】这种模式出现之前，尽管开发者“并不想关心”，却“不得不关心”。**因为这些模式都没有解决根本上的问题，那就是心智模型的问题。**
+
+### 为什么函数组件+Hooks是更优解？
+
+前面我们说“HOC 虽然能够实现代码重用，但是不治本”。为什么不治本？因为 HOC **没有解决逻辑和视图耦合的问题**。
+
+render props 是有进步意义的，因为它以 render 函数为界，将整个组件划分为了两部分：
+
+- **数据的准备工作——也就是“逻辑”**
+- **数据的渲染工作——也就是“视图”**
+
+其中，“视图”表现为一个纯函数组件，这个纯函数组件是高度独立的。尽管”视图“是高度独立的，“逻辑”却仍然耦合在组件的上下文里。**这种程度的解耦是暧昧的、不彻底的**。
+
+【函数组件+Hooks】模式的出现，恰好就打破了这种暧昧的状态：
+
+在过去，组件状态附着在组件实例（this）上，形成一种强耦合的关系——我想维护一段和状态有关的逻辑，行不行？行的，但是我必须先创造一个组件实例作为它的容器。
+
+而现在，**状态被视作函数的入参和出参**，它可以脱离于 this 而存在，状态管理逻辑可以从组件实例上剥离、被提升为公共层的一个函数，由此便彻底地实现逻辑和视图的解耦。
+
+写到这里，我忍不住还想再 cue 一下上一节讲的心智模型：
+
+**“Impure/Pure”的心智模型是“因”，“充分解耦逻辑与视图”是“果”**。
+
+**函数式思想是“因”，更高效的代码重用是“果”**。
+
+### 拓展：关注点分离——容器组件与展示组件
+
+容器组件与展示组件也是非常经典的设计模式。这个模式有很多的别名，比如：
+
+- 胖组件/瘦组件
+- 有状态组件/无状态组件
+- 聪明组件/傻瓜组件
+- ...
+
+> 注：（斜线前面的名字是容器组件的别名，斜线后面的名字是展示组件的别名）
+
+名字叫啥不重要，这个模式的要义在于关注点分离，具体来说，先将组件逻辑分为两类：
+
+- **数据的准备工作——也就是“逻辑”**
+- **数据的渲染工作——也就是“视图”**
+
+然后再把这两类逻辑分别塞进两类组件中：
+
+- 容器组件：负责做**数据的准备和分发工作**
+- 展示组件：负责做**数据的渲染工作**
+
+这个模式强调的是容器组件和展示组件之间的父子关系：容器组件是父组件，它在完成数据的准备工作后，会通过 props 将数据分发给作为子组件的展示组件。
+
+由此，我们就能够实现组件的关注点分离，使组件的功能更加**内聚**，实现**逻辑与视图的分离**......诶？又是逻辑与视图分离？哈哈，没错，就是这么无聊，就是这么万变不离其宗呀~
+
